@@ -248,11 +248,16 @@ func handlerTodoSingle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	db.Create(&Todo{
+	result := db.Create(&Todo{
 		Judul:     inputs.Judul,
 		Prioritas: inputs.Prioritas,
 		UserID:    userID,
 	})
+
+	if result.Error != nil {
+		sendError(w, "gagal menyimpan data", 500)
+		return
+	}
 
 	hasil := map[string]any{
 		"pesan":     "Todo berhasil ditambahkan",
@@ -364,8 +369,11 @@ func handlerHapusTodo(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	userID := getUserID(r)
-	db.Where("id = ? AND user_id = ?", id, userID).Delete(&Todo{})
-
+	result := db.Where("id = ? AND user_id = ?", id, userID).Delete(&Todo{})
+	if result.Error != nil {
+		sendError(w, "gagal menghapus data", 500)
+		return
+	}
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]any{
 		"pesan": "Todo berhasil dihapus",
@@ -401,15 +409,32 @@ func handlerUpdateTodo(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	userID := getUserID(r)
-	db.Model(&Todo{}).Where("id = ? AND user_id = ?", id, userID).Updates(map[string]any{
+	result := db.Model(&Todo{}).Where("id = ? AND user_id = ?", id, userID).Updates(map[string]any{
 		"judul":     inputs.Judul,
 		"prioritas": inputs.Prioritas,
 	})
+
+	if result.Error != nil {
+		sendError(w, "gagal mengupdate data", 500)
+		return
+	}
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]any{
 		"pesan": "Todo berhasil diupdate",
 	})
+}
+
+func recoveryMiddleware(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		defer func() {
+			if err := recover(); err != nil {
+				sendError(w, "terjadi kesalahan", 500)
+			}
+		}()
+		next(w, r)
+	}
+
 }
 
 func main() {
@@ -427,13 +452,13 @@ func main() {
 
 	db.AutoMigrate(&Todo{})
 	db.AutoMigrate(&User{})
-	http.HandleFunc("/register", handlerRegister)
-	http.HandleFunc("/login", handlerLogin)
-	http.HandleFunc("/tambah-todo", authMiddleware(handlerTodoSingle))
-	http.HandleFunc("/tambah-todo-batch", authMiddleware(handlerTodoBatch))
-	http.HandleFunc("/todos", authMiddleware(handlerTodos))
-	http.HandleFunc("/hapus-todo", authMiddleware(handlerHapusTodo))
-	http.HandleFunc("/update-todo", authMiddleware(handlerUpdateTodo))
+	http.HandleFunc("/register", recoveryMiddleware(handlerRegister))
+	http.HandleFunc("/login", recoveryMiddleware(handlerLogin))
+	http.HandleFunc("/tambah-todo", recoveryMiddleware(authMiddleware(handlerTodoSingle)))
+	http.HandleFunc("/tambah-todo-batch", recoveryMiddleware(authMiddleware(handlerTodoBatch)))
+	http.HandleFunc("/todos", recoveryMiddleware(authMiddleware(handlerTodos)))
+	http.HandleFunc("/hapus-todo", recoveryMiddleware(authMiddleware(handlerHapusTodo)))
+	http.HandleFunc("/update-todo", recoveryMiddleware(authMiddleware(handlerUpdateTodo)))
 
 	port := os.Getenv("PORT")
 	if port == "" {
