@@ -21,6 +21,7 @@ var db *gorm.DB
 
 type Todo struct {
 	gorm.Model
+	UserID    uint `json:"user_id"`
 	Judul     string
 	Prioritas string
 }
@@ -227,6 +228,9 @@ func handlerTodoSingle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	claims := r.Context().Value("claims").(*jwt.MapClaims)
+	userID := uint((*claims)["user_id"].(float64))
+
 	var inputs listTodo
 	err := json.NewDecoder(r.Body).Decode(&inputs)
 	if err != nil {
@@ -242,6 +246,7 @@ func handlerTodoSingle(w http.ResponseWriter, r *http.Request) {
 	db.Create(&Todo{
 		Judul:     inputs.Judul,
 		Prioritas: inputs.Prioritas,
+		UserID:    userID,
 	})
 
 	hasil := map[string]any{
@@ -298,7 +303,9 @@ func handlerTodos(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var todos []Todo
-	db.Find(&todos)
+	claims := r.Context().Value("claims").(*jwt.MapClaims)
+	userID := uint((*claims)["user_id"].(float64))
+	db.Where("user_id = ?", userID).Find(&todos)
 
 	var hasil []getTodo
 	for _, v := range todos {
@@ -329,8 +336,9 @@ func handlerHapusTodo(w http.ResponseWriter, r *http.Request) {
 		sendError(w, "ID tidak terdaftar", 400)
 		return
 	}
-
-	db.Delete(&Todo{}, id)
+	claims := r.Context().Value("claims").(*jwt.MapClaims)
+	userID := uint((*claims)["user_id"].(float64))
+	db.Where("id = ? AND user_id = ?", id, userID).Delete(&Todo{})
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]any{
@@ -366,8 +374,9 @@ func handlerUpdateTodo(w http.ResponseWriter, r *http.Request) {
 		sendError(w, pesan, 400)
 		return
 	}
-
-	db.Model(&Todo{}).Where("id = ?", id).Updates(map[string]any{
+	claims := r.Context().Value("claims").(*jwt.MapClaims)
+	userID := uint((*claims)["user_id"].(float64))
+	db.Model(&Todo{}).Where("id = ? AND user_id = ?", id, userID).Updates(map[string]any{
 		"judul":     inputs.Judul,
 		"prioritas": inputs.Prioritas,
 	})
