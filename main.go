@@ -307,9 +307,26 @@ func handlerTodos(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	pageStr := r.URL.Query().Get("page")
+	limitStr := r.URL.Query().Get("limit")
+
+	page, err := strconv.Atoi(pageStr)
+	if err != nil || page < 1 {
+		page = 1
+	}
+	limit, err := strconv.Atoi(limitStr)
+	if err != nil || limit < 1 {
+		limit = 10
+	}
+
+	offset := (page - 1) * limit
+
 	var todos []Todo
 	userID := getUserID(r)
-	db.Where("user_id = ?", userID).Find(&todos)
+	db.Where("user_id = ?", userID).Limit(limit).Offset(offset).Find(&todos)
+
+	var total int64
+	db.Model(&Todo{}).Where("user_id = ?", userID).Count(&total)
 
 	var hasil []getTodo
 	for _, v := range todos {
@@ -319,9 +336,15 @@ func handlerTodos(w http.ResponseWriter, r *http.Request) {
 			Prioritas: v.Prioritas,
 		})
 	}
+	page_data := map[string]any{
+		"page":  page,
+		"limit": limit,
+		"total": total,
+		"data":  hasil,
+	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(hasil)
+	json.NewEncoder(w).Encode(page_data)
 }
 
 func handlerHapusTodo(w http.ResponseWriter, r *http.Request) {
