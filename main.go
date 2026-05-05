@@ -8,6 +8,7 @@ import (
 	"strconv"
 
 	"context"
+	"log"
 	"strings"
 	"time"
 
@@ -255,6 +256,7 @@ func handlerTodoSingle(w http.ResponseWriter, r *http.Request) {
 	})
 
 	if result.Error != nil {
+		log.Printf("ERROR handlerTodoSingle - db.Create failed: %v, userID: %d", result.Error, userID)
 		sendError(w, "gagal menyimpan data", 500)
 		return
 	}
@@ -371,6 +373,7 @@ func handlerHapusTodo(w http.ResponseWriter, r *http.Request) {
 	userID := getUserID(r)
 	result := db.Where("id = ? AND user_id = ?", id, userID).Delete(&Todo{})
 	if result.Error != nil {
+		log.Printf("ERROR handlerHapusTodo - db.Delete failed: %v, userID: %d", result.Error, userID)
 		sendError(w, "gagal menghapus data", 500)
 		return
 	}
@@ -415,6 +418,7 @@ func handlerUpdateTodo(w http.ResponseWriter, r *http.Request) {
 	})
 
 	if result.Error != nil {
+		log.Printf("ERROR handlerUpdateTodo - db.Update failed: %v, userID: %d", result.Error, userID)
 		sendError(w, "gagal mengupdate data", 500)
 		return
 	}
@@ -429,6 +433,7 @@ func recoveryMiddleware(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		defer func() {
 			if err := recover(); err != nil {
+				log.Printf("ERROR recoveryMiddlewar:%v", err)
 				sendError(w, "terjadi kesalahan", 500)
 			}
 		}()
