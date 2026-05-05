@@ -59,6 +59,12 @@ type InputAuth struct {
 	Password string `json:"password"`
 }
 
+func getUserID(r *http.Request) uint {
+	claims := r.Context().Value("claims").(*jwt.MapClaims)
+	userID := uint((*claims)["user_id"].(float64))
+	return userID
+}
+
 func handlerRegister(w http.ResponseWriter, r *http.Request) {
 	if r.Method != "POST" {
 		sendError(w, "method harus POST", 405)
@@ -228,8 +234,7 @@ func handlerTodoSingle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	claims := r.Context().Value("claims").(*jwt.MapClaims)
-	userID := uint((*claims)["user_id"].(float64))
+	userID := getUserID(r)
 
 	var inputs listTodo
 	err := json.NewDecoder(r.Body).Decode(&inputs)
@@ -303,8 +308,7 @@ func handlerTodos(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var todos []Todo
-	claims := r.Context().Value("claims").(*jwt.MapClaims)
-	userID := uint((*claims)["user_id"].(float64))
+	userID := getUserID(r)
 	db.Where("user_id = ?", userID).Find(&todos)
 
 	var hasil []getTodo
@@ -336,8 +340,7 @@ func handlerHapusTodo(w http.ResponseWriter, r *http.Request) {
 		sendError(w, "ID tidak terdaftar", 400)
 		return
 	}
-	claims := r.Context().Value("claims").(*jwt.MapClaims)
-	userID := uint((*claims)["user_id"].(float64))
+	userID := getUserID(r)
 	db.Where("id = ? AND user_id = ?", id, userID).Delete(&Todo{})
 
 	w.Header().Set("Content-Type", "application/json")
@@ -374,8 +377,7 @@ func handlerUpdateTodo(w http.ResponseWriter, r *http.Request) {
 		sendError(w, pesan, 400)
 		return
 	}
-	claims := r.Context().Value("claims").(*jwt.MapClaims)
-	userID := uint((*claims)["user_id"].(float64))
+	userID := getUserID(r)
 	db.Model(&Todo{}).Where("id = ? AND user_id = ?", id, userID).Updates(map[string]any{
 		"judul":     inputs.Judul,
 		"prioritas": inputs.Prioritas,
