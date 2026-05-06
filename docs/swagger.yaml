@@ -1,0 +1,336 @@
+basePath: /
+definitions:
+  main.InputAuth:
+    properties:
+      password:
+        type: string
+      username:
+        type: string
+    type: object
+  main.PageData:
+    properties:
+      data:
+        items:
+          $ref: '#/definitions/main.getTodo'
+        type: array
+      limit:
+        type: integer
+      page:
+        type: integer
+      total:
+        type: integer
+    type: object
+  main.ResponError:
+    properties:
+      error:
+        type: string
+    type: object
+  main.ResponPesan:
+    properties:
+      pesan:
+        example: Berhasil menambahkan username ke database
+        type: string
+    type: object
+  main.SuccessHandlerHapusUpdateTodo:
+    properties:
+      pesan:
+        type: string
+    type: object
+  main.SuccessHandlerTodoSingle:
+    properties:
+      judul:
+        type: string
+      pesan:
+        type: string
+      prioritas:
+        type: string
+    type: object
+  main.SuccessResponLogin:
+    properties:
+      pesan:
+        example: Berhasil login!
+        type: string
+      token:
+        type: string
+    type: object
+  main.getTodo:
+    properties:
+      id:
+        type: integer
+      judul:
+        type: string
+      prioritas:
+        type: string
+    type: object
+  main.listTodo:
+    properties:
+      judul:
+        type: string
+      prioritas:
+        type: string
+    type: object
+  main.listTodoBatch:
+    properties:
+      error:
+        type: string
+      judul:
+        type: string
+      prioritas:
+        type: string
+      status:
+        type: string
+    type: object
+host: todo-api-production-74d1.up.railway.app
+info:
+  contact:
+    name: Jason
+    url: https://github.com/Tarquished
+  description: |-
+    REST API untuk manajemen todo list dengan JWT authentication
+    Setiap user punya todo list sendiri (terisolasi by user_id)
+  title: Todo API
+  version: "1.0"
+paths:
+  /hapus-todo:
+    delete:
+      description: |-
+        Untuk menghapus suatu To-Do dengan ID yang diberikan
+        Diverifikasi melalui JWT Token untuk mengecek kepemilikan
+      parameters:
+      - description: ID
+        in: query
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/main.SuccessHandlerHapusUpdateTodo'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/main.ResponError'
+        "405":
+          description: Method Not Allowed
+          schema:
+            $ref: '#/definitions/main.ResponError'
+      security:
+      - BearerAuth: []
+      summary: Menghapus To-Do berdasarkan ID
+      tags:
+      - Todo
+  /login:
+    post:
+      consumes:
+      - application/json
+      description: |-
+        Melakukan login dengan username dan password yang sudah ada dalam database
+        Password akan diverify dan akan diberikan JWT Token
+      parameters:
+      - description: Username dan password
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/main.InputAuth'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/main.SuccessResponLogin'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/main.ResponError'
+        "405":
+          description: Method Not Allowed
+          schema:
+            $ref: '#/definitions/main.ResponError'
+      summary: Login user
+      tags:
+      - Auth
+  /register:
+    post:
+      consumes:
+      - application/json
+      description: |-
+        Mendaftarkan user baru dengan username dan password
+        Password akan di-hash menggunakan bcrypt sebelum disimpan
+      parameters:
+      - description: Username dan password
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/main.InputAuth'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/main.ResponPesan'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/main.ResponError'
+        "405":
+          description: Method Not Allowed
+          schema:
+            $ref: '#/definitions/main.ResponError'
+      summary: Register user baru
+      tags:
+      - Auth
+  /tambah-todo:
+    post:
+      consumes:
+      - application/json
+      description: Mendaftarkan To-Do ke dalam database dengan melakukan verify JWT
+        terlebih dahulu
+      parameters:
+      - description: Judul dan Prioritas
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/main.listTodo'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/main.SuccessHandlerTodoSingle'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/main.ResponError'
+        "405":
+          description: Method Not Allowed
+          schema:
+            $ref: '#/definitions/main.ResponError'
+      security:
+      - BearerAuth: []
+      summary: Membuat To-Do secara single
+      tags:
+      - Todo
+  /tambah-todo-batch:
+    post:
+      consumes:
+      - application/json
+      description: Mendaftarkan To-Do batch ke dalam database dengan melakukan verify
+        JWT terlebih dahulu
+      parameters:
+      - description: List todo
+        in: body
+        name: request
+        required: true
+        schema:
+          items:
+            $ref: '#/definitions/main.listTodo'
+          type: array
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/main.listTodoBatch'
+            type: array
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/main.ResponError'
+        "405":
+          description: Method Not Allowed
+          schema:
+            $ref: '#/definitions/main.ResponError'
+      security:
+      - BearerAuth: []
+      summary: Membuat To-Do secara batch
+      tags:
+      - Todo
+  /todos:
+    get:
+      description: |-
+        Menampilkan isi dari semua To-Do yang dimiliki oleh user
+        Memverifikasi ID dan token yang dipakai melalui JWT verification
+      parameters:
+      - description: 'Nomor halaman (default: 1)'
+        in: query
+        name: page
+        type: integer
+      - description: 'Jumlah data per halaman (default: 10)'
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/main.PageData'
+        "405":
+          description: Method Not Allowed
+          schema:
+            $ref: '#/definitions/main.ResponError'
+      security:
+      - BearerAuth: []
+      summary: Menampilkan semua To-Do User
+      tags:
+      - Todo
+  /update-todo:
+    put:
+      consumes:
+      - application/json
+      description: |-
+        Untuk mengubah suatu To-Do dengan ID yang diberikan
+        Diverifikasi melalui JWT Token untuk mengecek kepemilikan
+      parameters:
+      - description: ID
+        in: query
+        name: id
+        required: true
+        type: integer
+      - description: listTodo
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/main.listTodo'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/main.SuccessHandlerHapusUpdateTodo'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/main.ResponError'
+        "405":
+          description: Method Not Allowed
+          schema:
+            $ref: '#/definitions/main.ResponError'
+      security:
+      - BearerAuth: []
+      summary: Mengupdate To-Do berdasarkan ID
+      tags:
+      - Todo
+schemes:
+- https
+securityDefinitions:
+  BearerAuth:
+    description: 'Masukkan token dengan format: Bearer <token>'
+    in: header
+    name: Authorization
+    type: apiKey
+swagger: "2.0"

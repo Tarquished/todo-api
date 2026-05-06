@@ -12,7 +12,10 @@ import (
 	"strings"
 	"time"
 
+	_ "todo-api/docs"
+
 	"github.com/golang-jwt/jwt/v5"
+	httpSwagger "github.com/swaggo/http-swagger"
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
@@ -60,12 +63,28 @@ type InputAuth struct {
 	Password string `json:"password"`
 }
 
+type ResponPesan struct {
+	Pesan string `json:"pesan" example:"Berhasil menambahkan username ke database"`
+}
+
 func getUserID(r *http.Request) uint {
 	claims := r.Context().Value("claims").(*jwt.MapClaims)
 	userID := uint((*claims)["user_id"].(float64))
 	return userID
 }
 
+// handlerRegister godoc
+// @Summary      Register user baru
+// @Description  Mendaftarkan user baru dengan username dan password
+// @Description  Password akan di-hash menggunakan bcrypt sebelum disimpan
+// @Tags         Auth
+// @Accept       json
+// @Produce      json
+// @Param        request  body      InputAuth      true  "Username dan password"
+// @Success      200      {object}  ResponPesan
+// @Failure      400      {object}  ResponError
+// @Failure      405      {object}  ResponError
+// @Router       /register [post]
 func handlerRegister(w http.ResponseWriter, r *http.Request) {
 	if r.Method != "POST" {
 		sendError(w, "method harus POST", 405)
@@ -104,14 +123,30 @@ func handlerRegister(w http.ResponseWriter, r *http.Request) {
 		Username: input.Username,
 		Password: string(hashPassword),
 	})
-	succesRespon := map[string]any{
-		"pesan": "Berhasil menambahkan username ke database",
-	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(succesRespon)
+	json.NewEncoder(w).Encode(ResponPesan{
+		Pesan: "Berhasil menambahkan username ke database",
+	})
 }
 
+type SuccessResponLogin struct {
+	Pesan string `json:"pesan" example:"Berhasil login!"`
+	Token string `json:"token"`
+}
+
+// handlerLogin godoc
+// @Summary 	Login user
+// @Description	Melakukan login dengan username dan password yang sudah ada dalam database
+// @Description	Password akan diverify dan akan diberikan JWT Token
+// @Tags		Auth
+// @Accept		json
+// @Produce		json
+// @Param		request	body		InputAuth	true	"Username dan password"
+// @Success		200		{object}	SuccessResponLogin
+// @Failure		400		{object}	ResponError
+// @Failure		405		{object}	ResponError
+// @Router		/login	[post]
 func handlerLogin(w http.ResponseWriter, r *http.Request) {
 	if r.Method != "POST" {
 		sendError(w, "method harus POST", 405)
@@ -166,13 +201,12 @@ func handlerLogin(w http.ResponseWriter, r *http.Request) {
 		sendError(w, "gagal generate token", 400)
 		return
 	}
-	succesRespon := map[string]any{
-		"pesan": "Berhasil login!",
-		"token": tokenString,
-	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(succesRespon)
+	json.NewEncoder(w).Encode(SuccessResponLogin{
+		Pesan: "Berhasil login!",
+		Token: tokenString,
+	})
 }
 
 func algoritma(t *jwt.Token) (interface{}, error) {
@@ -229,6 +263,24 @@ func validasiTodo(inputs listTodo) string {
 	return ""
 }
 
+type SuccessHandlerTodoSingle struct {
+	Pesan     string `json:"pesan"`
+	Judul     string `json:"judul"`
+	Prioritas string `json:"prioritas"`
+}
+
+// handlerTodoSingle godoc
+// @Summary	Membuat To-Do secara single
+// @Description	Mendaftarkan To-Do ke dalam database dengan melakukan verify JWT terlebih dahulu
+// @Tags		Todo
+// @Accept		json
+// @Produce		json
+// @Param		request	body	listTodo	true	"Judul dan Prioritas"
+// @Security 	BearerAuth
+// @Success		200		{object}	SuccessHandlerTodoSingle
+// @Failure		400		{object}	ResponError
+// @Failure		405		{object}	ResponError
+// @Router		/tambah-todo	[post]
 func handlerTodoSingle(w http.ResponseWriter, r *http.Request) {
 	if r.Method != "POST" {
 		sendError(w, "method harus POST", 405)
@@ -261,15 +313,26 @@ func handlerTodoSingle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	hasil := map[string]any{
-		"pesan":     "Todo berhasil ditambahkan",
-		"judul":     inputs.Judul,
-		"prioritas": inputs.Prioritas,
-	}
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(hasil)
+	json.NewEncoder(w).Encode(SuccessHandlerTodoSingle{
+		Pesan:     "Todo berhasil ditambahkan",
+		Judul:     inputs.Judul,
+		Prioritas: inputs.Prioritas,
+	})
 }
 
+// handlerTodoBatch godoc
+// @Summary	Membuat To-Do secara batch
+// @Description	Mendaftarkan To-Do batch ke dalam database dengan melakukan verify JWT terlebih dahulu
+// @Tags		Todo
+// @Accept		json
+// @Produce		json
+// @Param		request	body	[]listTodo	true	"List todo"
+// @Security 	BearerAuth
+// @Success		200		{array}		listTodoBatch
+// @Failure		400		{object}	ResponError
+// @Failure		405		{object}	ResponError
+// @Router		/tambah-todo-batch	[post]
 func handlerTodoBatch(w http.ResponseWriter, r *http.Request) {
 	if r.Method != "POST" {
 		sendError(w, "method harus POST", 405)
@@ -308,6 +371,25 @@ func handlerTodoBatch(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(hasil)
 }
 
+type PageData struct {
+	Page  int       `json:"page"`
+	Limit int       `json:"limit"`
+	Total int64     `json:"total"`
+	Data  []getTodo `json:"data"`
+}
+
+// handlerTodos godoc
+// @Summary		Menampilkan semua To-Do User
+// @Description	Menampilkan isi dari semua To-Do yang dimiliki oleh user
+// @Description	Memverifikasi ID dan token yang dipakai melalui JWT verification
+// @Tags		Todo
+// @Produce		json
+// @Param		page	query	int	false	"Nomor halaman (default: 1)"
+// @Param		limit	query	int	false	"Jumlah data per halaman (default: 10)"
+// @Security 	BearerAuth
+// @Success		200		{object}	PageData
+// @Failure		405		{object}	ResponError
+// @Router		/todos	[get]
 func handlerTodos(w http.ResponseWriter, r *http.Request) {
 	if r.Method != "GET" {
 		sendError(w, "method harus GET", 405)
@@ -343,17 +425,33 @@ func handlerTodos(w http.ResponseWriter, r *http.Request) {
 			Prioritas: v.Prioritas,
 		})
 	}
-	page_data := map[string]any{
-		"page":  page,
-		"limit": limit,
-		"total": total,
-		"data":  hasil,
+	page_data := PageData{
+		Page:  page,
+		Limit: limit,
+		Total: total,
+		Data:  hasil,
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(page_data)
 }
 
+type SuccessHandlerHapusUpdateTodo struct {
+	Pesan string `json:"pesan"`
+}
+
+// handlerHapusTodo godoc
+// @Summary		Menghapus To-Do berdasarkan ID
+// @Description	Untuk menghapus suatu To-Do dengan ID yang diberikan
+// @Description	Diverifikasi melalui JWT Token untuk mengecek kepemilikan
+// @Tags		Todo
+// @Produce		json
+// @Param		id	query	int	true	"ID"
+// @Security	BearerAuth
+// @Success		200		{object}	SuccessHandlerHapusUpdateTodo
+// @Failure		400		{object}	ResponError
+// @Failure		405		{object}	ResponError
+// @Router		/hapus-todo	[delete]
 func handlerHapusTodo(w http.ResponseWriter, r *http.Request) {
 	if r.Method != "DELETE" {
 		sendError(w, "method harus DELETE", 405)
@@ -378,11 +476,25 @@ func handlerHapusTodo(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]any{
-		"pesan": "Todo berhasil dihapus",
+	json.NewEncoder(w).Encode(SuccessHandlerHapusUpdateTodo{
+		Pesan: "Todo berhasil dihapus",
 	})
 }
 
+// handlerUpdateTodo godoc
+// @Summary		Mengupdate To-Do berdasarkan ID
+// @Description	Untuk mengubah suatu To-Do dengan ID yang diberikan
+// @Description	Diverifikasi melalui JWT Token untuk mengecek kepemilikan
+// @Tags		Todo
+// @Produce		json
+// @Accept		json
+// @Param		id	query	int	true	"ID"
+// @Param		request	body	listTodo	true	"listTodo"
+// @Security	BearerAuth
+// @Success		200		{object}	SuccessHandlerHapusUpdateTodo
+// @Failure		400		{object}	ResponError
+// @Failure		405		{object}	ResponError
+// @Router		/update-todo	[put]
 func handlerUpdateTodo(w http.ResponseWriter, r *http.Request) {
 	if r.Method != "PUT" {
 		sendError(w, "method harus PUT", 405)
@@ -424,8 +536,8 @@ func handlerUpdateTodo(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]any{
-		"pesan": "Todo berhasil diupdate",
+	json.NewEncoder(w).Encode(SuccessHandlerHapusUpdateTodo{
+		Pesan: "Todo berhasil diupdate",
 	})
 }
 
@@ -441,6 +553,23 @@ func recoveryMiddleware(next http.HandlerFunc) http.HandlerFunc {
 	}
 
 }
+
+// @title           Todo API
+// @version         1.0
+// @description     REST API untuk manajemen todo list dengan JWT authentication
+// @description     Setiap user punya todo list sendiri (terisolasi by user_id)
+
+// @contact.name    Jason
+// @contact.url     https://github.com/Tarquished
+
+// @host            todo-api-production-74d1.up.railway.app
+// @schemes 		https
+// @BasePath        /
+
+// @securityDefinitions.apikey BearerAuth
+// @in              header
+// @name            Authorization
+// @description     Masukkan token dengan format: Bearer <token>
 
 func main() {
 	dsn := os.Getenv("DATABASE_URL")
@@ -464,7 +593,7 @@ func main() {
 	http.HandleFunc("/todos", recoveryMiddleware(authMiddleware(handlerTodos)))
 	http.HandleFunc("/hapus-todo", recoveryMiddleware(authMiddleware(handlerHapusTodo)))
 	http.HandleFunc("/update-todo", recoveryMiddleware(authMiddleware(handlerUpdateTodo)))
-
+	http.HandleFunc("/swagger/", httpSwagger.WrapHandler)
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "8080"
