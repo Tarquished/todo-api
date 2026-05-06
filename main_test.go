@@ -1,6 +1,10 @@
 package main
 
-import "testing"
+import (
+	"net/http/httptest"
+	"strings"
+	"testing"
+)
 
 func TestValidasiTodo(t *testing.T) {
 	tests := []struct {
@@ -38,4 +42,68 @@ func TestValidasiTodo(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestHandlerRegister(t *testing.T) {
+	tests := []struct {
+		nama           string
+		method         string
+		body           string
+		expectedStatus int
+	}{
+		{"body kosong", "POST", "", 400},
+		{"method salah", "GET", "", 405},
+		{"username kosong", "POST", `{"username":"","password":"rahasia"}`, 400},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.nama, func(t *testing.T) {
+			var body *strings.Reader
+			if tt.body != "" {
+				body = strings.NewReader(tt.body)
+			} else {
+				body = strings.NewReader("")
+			}
+			req := httptest.NewRequest(tt.method, "/register", body)
+			req.Header.Set("Content-Type", "application/json")
+			rr := httptest.NewRecorder()
+			handlerRegister(rr, req)
+			if rr.Code != tt.expectedStatus {
+				t.Errorf("got %d, want %d", rr.Code, tt.expectedStatus)
+			}
+		})
+	}
+}
+
+func TestHandlerLogin(t *testing.T) {
+	tests := []struct {
+		nama           string
+		method         string
+		body           string
+		expectedStatus int
+	}{
+		{"method salah", "GET", "", 405},
+		{"body kosong", "POST", "", 400},
+		{"username kosong", "POST", `{"username":"", "password":"rahasia"}`, 400},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.nama, func(t *testing.T) {
+			var body *strings.Reader
+			if tt.body != "" {
+				body = strings.NewReader(tt.body)
+			} else {
+				body = strings.NewReader("")
+			}
+
+			req := httptest.NewRequest(tt.method, "/register", body)
+			req.Header.Set("Content-Type", "application/json")
+			rr := httptest.NewRecorder()
+			handlerLogin(rr, req)
+			if rr.Code != tt.expectedStatus {
+				t.Errorf("got %d, want %d", rr.Code, tt.expectedStatus)
+			}
+		})
+	}
+
 }
