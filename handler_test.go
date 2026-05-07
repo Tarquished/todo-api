@@ -5,9 +5,11 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"os" // Tambahin import os
 	"strings"
-	"testing"
+	"testing" // Tambahin import os
 
+	"github.com/go-playground/validator/v10"
 	"github.com/golang-jwt/jwt/v5"
 )
 
@@ -36,7 +38,19 @@ func (m *MockTodoRepository) DeleteTodo(id int, userID uint) error {
 func (m *MockTodoRepository) UpdateTodo(id int, userID uint, judul string, prioritas string) error {
 	return m.UpdateTodoError
 }
+func TestMain(m *testing.M) {
+	// 1. Colok kabelnya: Inisialisasi validator global sebelum test mulai
+	validate = validator.New()
 
+	// 2. (Opsional) Tambahin config RegisterTagNameFunc biar Field() jadi kecil
+	// kayak yang kita bahas tadi
+
+	// 3. Jalankan semua test yang ada di folder ini
+	exitCode := m.Run()
+
+	// 4. Selesai
+	os.Exit(exitCode)
+}
 func TestHandlerTodoSingle_Success(t *testing.T) {
 	// 1. Setup mock — pura-pura database berhasil
 	mock := &MockTodoRepository{

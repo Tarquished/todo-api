@@ -19,11 +19,18 @@ import (
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
+
+	"errors"
+
+	"reflect"
+
+	"github.com/go-playground/validator/v10"
 )
 
 var db *gorm.DB
 var repo TodoRepository
 var UserRepo UserRepository
+var validate *validator.Validate
 
 type Todo struct {
 	gorm.Model
@@ -33,8 +40,8 @@ type Todo struct {
 }
 
 type listTodo struct {
-	Judul     string `json:"judul"`
-	Prioritas string `json:"prioritas"`
+	Judul     string `json:"judul" validate:"required"`
+	Prioritas string `json:"prioritas" validate:"required,oneof=tinggi sedang rendah"`
 }
 
 type listTodoBatch struct {
@@ -67,6 +74,41 @@ type InputAuth struct {
 
 type ResponPesan struct {
 	Pesan string `json:"pesan" example:"Berhasil menambahkan username ke database"`
+}
+
+func FormatValidationError(err error) []string {
+
+	// Tambahin ini biar e.Field() ngambil nama dari tag json:"..."
+	validate.RegisterTagNameFunc(func(fld reflect.StructField) string {
+		name := strings.SplitN(fld.Tag.Get("json"), ",", 2)[0]
+		if name == "-" {
+			return ""
+		}
+		return name
+	})
+	var validationErrs validator.ValidationErrors
+	var errorMessages []string
+
+	// 1. Kita cek apakah ini benar-benar error dari validator
+	if errors.As(err, &validationErrs) {
+		// 2. Kita looping setiap kesalahan yang ditemukan
+		for _, e := range validationErrs {
+
+			// 3. Kita terjemahkan berdasarkan Tag (aturan) yang dilanggar
+			switch e.Tag() {
+			case "required":
+				// Kalau tag-nya "required", pesannya apa?
+				pesan := fmt.Sprintf("%s harus terisi", e.Field())
+				errorMessages = append(errorMessages, pesan)
+
+			case "oneof":
+				pesan := fmt.Sprintf("%s harus berupa %s", e.Field(), e.Param())
+				errorMessages = append(errorMessages, pesan)
+			}
+		}
+	}
+
+	return errorMessages
 }
 
 func getUserID(r *http.Request) uint {
@@ -302,8 +344,17 @@ func handlerTodoSingle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if pesan := validasiTodo(inputs); pesan != "" {
-		sendError(w, pesan, 400)
+	err = validate.Struct(inputs)
+
+	if err != nil {
+		pesanError := FormatValidationError(err)
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]any{
+			"status": "fail",
+			"errors": pesanError,
+		})
 		return
 	}
 
@@ -527,10 +578,20 @@ func handlerUpdateTodo(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if pesan := validasiTodo(inputs); pesan != "" {
-		sendError(w, pesan, 400)
+	err = validate.Struct(inputs)
+
+	if err != nil {
+		pesanError := FormatValidationError(err)
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]any{
+			"status": "fail",
+			"errors": pesanError,
+		})
 		return
 	}
+
 	userID := getUserID(r)
 	err = repo.UpdateTodo(id, userID, inputs.Judul, inputs.Prioritas)
 
@@ -594,6 +655,7 @@ func main() {
 	if dsn == "" {
 		dsn = "host=localhost user=postgres password=test162534 dbname=todoapp port=5432 sslmode=disable"
 	}
+	validate = validator.New()
 
 	var err error
 	db, err = gorm.Open(postgres.Open(dsn), &gorm.Config{})

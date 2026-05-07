@@ -23,6 +23,11 @@ func (m *MockUserRepository) RegisterUser(user User) error {
 	return m.RegisterError
 }
 
+var response struct {
+	Status string   `json:"status"`
+	Errors []string `json:"errors"`
+}
+
 func TestValidasiTodo(t *testing.T) {
 	tests := []struct {
 		nama     string
