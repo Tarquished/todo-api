@@ -25,6 +25,7 @@ import (
 	"reflect"
 
 	"github.com/go-playground/validator/v10"
+	"github.com/spf13/viper"
 )
 
 var db *gorm.DB
@@ -76,28 +77,28 @@ type ResponPesan struct {
 	Pesan string `json:"pesan" example:"Berhasil menambahkan username ke database"`
 }
 
+func loadConfig() error {
+	viper.SetConfigFile(".env")
+
+	err := viper.ReadInConfig()
+	if err != nil {
+		return err
+	}
+
+	viper.AutomaticEnv()
+
+	return nil
+}
 func FormatValidationError(err error) []string {
 
-	// Tambahin ini biar e.Field() ngambil nama dari tag json:"..."
-	validate.RegisterTagNameFunc(func(fld reflect.StructField) string {
-		name := strings.SplitN(fld.Tag.Get("json"), ",", 2)[0]
-		if name == "-" {
-			return ""
-		}
-		return name
-	})
 	var validationErrs validator.ValidationErrors
 	var errorMessages []string
 
-	// 1. Kita cek apakah ini benar-benar error dari validator
 	if errors.As(err, &validationErrs) {
-		// 2. Kita looping setiap kesalahan yang ditemukan
 		for _, e := range validationErrs {
 
-			// 3. Kita terjemahkan berdasarkan Tag (aturan) yang dilanggar
 			switch e.Tag() {
 			case "required":
-				// Kalau tag-nya "required", pesannya apa?
 				pesan := fmt.Sprintf("%s harus terisi", e.Field())
 				errorMessages = append(errorMessages, pesan)
 
@@ -239,7 +240,7 @@ func handlerLogin(w http.ResponseWriter, r *http.Request) {
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 
-	secretkey := os.Getenv("JWT_SECRET")
+	secretkey := viper.GetString("JWT_SECRET")
 	if secretkey == "" {
 		secretkey = "test1625jason34"
 	}
@@ -258,7 +259,7 @@ func handlerLogin(w http.ResponseWriter, r *http.Request) {
 }
 
 func algoritma(t *jwt.Token) (interface{}, error) {
-	secretkey := os.Getenv("JWT_SECRET")
+	secretkey := viper.GetString("JWT_SECRET")
 	if secretkey == "" {
 		secretkey = "test1625jason34"
 	}
@@ -651,16 +652,33 @@ func corsMiddleware(next http.HandlerFunc) http.HandlerFunc {
 // @description     Masukkan token dengan format: Bearer <token>
 
 func main() {
-	dsn := os.Getenv("DATABASE_URL")
-	if dsn == "" {
-		dsn = "host=localhost user=postgres password=test162534 dbname=todoapp port=5432 sslmode=disable"
+	var err error
+	err = loadConfig()
+	if err != nil {
+		log.Printf("Peringatan: file .env tidak ditemukan, menggunakan variabel sistem: %v", err)
+	}
+	dsn := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%s sslmode=disable",
+		viper.GetString("DB_HOST"),
+		viper.GetString("DB_USER"),
+		viper.GetString("DB_PASSWORD"),
+		viper.GetString("DB_NAME"),
+		viper.GetString("DB_PORT"),
+	)
+	if viper.GetString("DB_HOST") == "" {
+		dsn = os.Getenv("DATABASE_URL")
 	}
 	validate = validator.New()
+	validate.RegisterTagNameFunc(func(fld reflect.StructField) string {
+		name := strings.SplitN(fld.Tag.Get("json"), ",", 2)[0]
+		if name == "-" {
+			return ""
+		}
+		return name
+	})
 
-	var err error
 	db, err = gorm.Open(postgres.Open(dsn), &gorm.Config{})
 	if err != nil {
-		fmt.Println("Gagal konek ke database:", err)
+		log.Fatalf("Gagal konek ke database: %v", err)
 		return
 	}
 	repo = NewPostgresTodoRepository(db)
@@ -676,7 +694,7 @@ func main() {
 	http.HandleFunc("/hapus-todo", corsMiddleware(recoveryMiddleware(authMiddleware(handlerHapusTodo))))
 	http.HandleFunc("/update-todo", corsMiddleware(recoveryMiddleware(authMiddleware(handlerUpdateTodo))))
 	http.HandleFunc("/swagger/", httpSwagger.WrapHandler)
-	port := os.Getenv("PORT")
+	port := viper.GetString("PORT")
 	if port == "" {
 		port = "8080"
 	}
