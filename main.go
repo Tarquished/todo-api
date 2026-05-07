@@ -22,6 +22,7 @@ import (
 )
 
 var db *gorm.DB
+var repo TodoRepository
 
 type Todo struct {
 	gorm.Model
@@ -301,14 +302,14 @@ func handlerTodoSingle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	result := db.Create(&Todo{
+	err = repo.CreateTodo(Todo{
 		Judul:     inputs.Judul,
 		Prioritas: inputs.Prioritas,
 		UserID:    userID,
 	})
 
-	if result.Error != nil {
-		log.Printf("ERROR handlerTodoSingle - db.Create failed: %v, userID: %d", result.Error, userID)
+	if err != nil {
+		log.Printf("ERROR handlerTodoSingle - db.Create failed: %v, userID: %d", err, userID)
 		sendError(w, "gagal menyimpan data", 500)
 		return
 	}
@@ -409,13 +410,15 @@ func handlerTodos(w http.ResponseWriter, r *http.Request) {
 	}
 
 	offset := (page - 1) * limit
-
-	var todos []Todo
 	userID := getUserID(r)
-	db.Where("user_id = ?", userID).Limit(limit).Offset(offset).Find(&todos)
 
-	var total int64
-	db.Model(&Todo{}).Where("user_id = ?", userID).Count(&total)
+	todos, total, err := repo.GetTodos(userID, limit, offset)
+
+	if err != nil {
+		log.Printf("ERROR handlerTodos - GetTodos failed: %v, userID: %d", err, userID)
+		sendError(w, "gagal mengambil data", 500)
+		return
+	}
 
 	var hasil []getTodo
 	for _, v := range todos {
@@ -469,9 +472,9 @@ func handlerHapusTodo(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	userID := getUserID(r)
-	result := db.Where("id = ? AND user_id = ?", id, userID).Delete(&Todo{})
-	if result.Error != nil {
-		log.Printf("ERROR handlerHapusTodo - db.Delete failed: %v, userID: %d", result.Error, userID)
+	err = repo.DeleteTodo(id, userID)
+	if err != nil {
+		log.Printf("ERROR handlerHapusTodo - db.Delete failed: %v, userID: %d", err, userID)
 		sendError(w, "gagal menghapus data", 500)
 		return
 	}
@@ -524,13 +527,10 @@ func handlerUpdateTodo(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	userID := getUserID(r)
-	result := db.Model(&Todo{}).Where("id = ? AND user_id = ?", id, userID).Updates(map[string]any{
-		"judul":     inputs.Judul,
-		"prioritas": inputs.Prioritas,
-	})
+	err = repo.UpdateTodo(id, userID, inputs.Judul, inputs.Prioritas)
 
-	if result.Error != nil {
-		log.Printf("ERROR handlerUpdateTodo - db.Update failed: %v, userID: %d", result.Error, userID)
+	if err != nil {
+		log.Printf("ERROR handlerUpdateTodo - db.Update failed: %v, userID: %d", err, userID)
 		sendError(w, "gagal mengupdate data", 500)
 		return
 	}
@@ -583,6 +583,7 @@ func main() {
 		fmt.Println("Gagal konek ke database:", err)
 		return
 	}
+	repo = NewPostgresTodoRepository(db)
 
 	db.AutoMigrate(&Todo{})
 	db.AutoMigrate(&User{})
