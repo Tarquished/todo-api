@@ -558,6 +558,19 @@ func recoveryMiddleware(next http.HandlerFunc) http.HandlerFunc {
 	}
 
 }
+func corsMiddleware(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+
+		if r.Method == "OPTIONS" {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+		next(w, r)
+	}
+}
 
 // @title           Todo API
 // @version         1.0
@@ -593,13 +606,13 @@ func main() {
 
 	db.AutoMigrate(&Todo{})
 	db.AutoMigrate(&User{})
-	http.HandleFunc("/register", recoveryMiddleware(handlerRegister))
-	http.HandleFunc("/login", recoveryMiddleware(handlerLogin))
-	http.HandleFunc("/tambah-todo", recoveryMiddleware(authMiddleware(handlerTodoSingle)))
-	http.HandleFunc("/tambah-todo-batch", recoveryMiddleware(authMiddleware(handlerTodoBatch)))
-	http.HandleFunc("/todos", recoveryMiddleware(authMiddleware(handlerTodos)))
-	http.HandleFunc("/hapus-todo", recoveryMiddleware(authMiddleware(handlerHapusTodo)))
-	http.HandleFunc("/update-todo", recoveryMiddleware(authMiddleware(handlerUpdateTodo)))
+	http.HandleFunc("/register", corsMiddleware(recoveryMiddleware(handlerRegister)))
+	http.HandleFunc("/login", corsMiddleware(recoveryMiddleware(handlerLogin)))
+	http.HandleFunc("/tambah-todo", corsMiddleware(recoveryMiddleware(authMiddleware(handlerTodoSingle))))
+	http.HandleFunc("/tambah-todo-batch", corsMiddleware(recoveryMiddleware(authMiddleware(handlerTodoBatch))))
+	http.HandleFunc("/todos", corsMiddleware(recoveryMiddleware(authMiddleware(handlerTodos))))
+	http.HandleFunc("/hapus-todo", corsMiddleware(recoveryMiddleware(authMiddleware(handlerHapusTodo))))
+	http.HandleFunc("/update-todo", corsMiddleware(recoveryMiddleware(authMiddleware(handlerUpdateTodo))))
 	http.HandleFunc("/swagger/", httpSwagger.WrapHandler)
 	port := os.Getenv("PORT")
 	if port == "" {
