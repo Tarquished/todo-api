@@ -23,6 +23,7 @@ import (
 
 var db *gorm.DB
 var repo TodoRepository
+var UserRepo UserRepository
 
 type Todo struct {
 	gorm.Model
@@ -108,10 +109,8 @@ func handlerRegister(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var user User
-
-	results := db.Where("username = ?", input.Username).First(&user)
-	if results.Error == nil {
+	_, results := UserRepo.CheckUser(input.Username)
+	if results == nil {
 		sendError(w, "username sudah ada", 400)
 		return
 	}
@@ -120,10 +119,16 @@ func handlerRegister(w http.ResponseWriter, r *http.Request) {
 		sendError(w, "error saat hashing password", 400)
 		return
 	}
-	db.Create(&User{
+
+	err = UserRepo.RegisterUser(User{
 		Username: input.Username,
 		Password: string(hashPassword),
 	})
+
+	if err != nil {
+		sendError(w, "gagal menyimpan user", 500)
+		return
+	}
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(ResponPesan{
@@ -172,8 +177,8 @@ func handlerLogin(w http.ResponseWriter, r *http.Request) {
 
 	var user User
 
-	results := db.Where("username = ?", input.Username).First(&user)
-	if results.Error != nil {
+	user, results := UserRepo.CheckUser(input.Username)
+	if results != nil {
 		sendError(w, "username belum ada", 400)
 		return
 	}
@@ -584,6 +589,7 @@ func main() {
 		return
 	}
 	repo = NewPostgresTodoRepository(db)
+	UserRepo = NewPostgresUserRepository(db)
 
 	db.AutoMigrate(&Todo{})
 	db.AutoMigrate(&User{})
