@@ -9,6 +9,8 @@ import (
 	"strings"
 	"testing" // Tambahin import os
 
+	"reflect"
+
 	"github.com/go-playground/validator/v10"
 	"github.com/golang-jwt/jwt/v5"
 )
@@ -39,17 +41,18 @@ func (m *MockTodoRepository) UpdateTodo(id int, userID uint, judul string, prior
 	return m.UpdateTodoError
 }
 func TestMain(m *testing.M) {
-	// 1. Colok kabelnya: Inisialisasi validator global sebelum test mulai
+	// Setup validator yang sama persis kayak di main()
 	validate = validator.New()
+	validate.RegisterTagNameFunc(func(fld reflect.StructField) string {
+		name := strings.SplitN(fld.Tag.Get("json"), ",", 2)[0]
+		if name == "-" {
+			return ""
+		}
+		return name
+	})
 
-	// 2. (Opsional) Tambahin config RegisterTagNameFunc biar Field() jadi kecil
-	// kayak yang kita bahas tadi
-
-	// 3. Jalankan semua test yang ada di folder ini
-	exitCode := m.Run()
-
-	// 4. Selesai
-	os.Exit(exitCode)
+	// Jalankan semua test
+	os.Exit(m.Run())
 }
 func TestHandlerTodoSingle_Success(t *testing.T) {
 	// 1. Setup mock — pura-pura database berhasil
@@ -173,6 +176,142 @@ func TestHandlerTodoSingle_JSONCacat(t *testing.T) {
 	handlerTodoSingle(w, req)
 
 	// Harus return 400 karena format JSON salah
+	if w.Code != 400 {
+		t.Errorf("expected 400, got %d", w.Code)
+	}
+}
+
+func TestHandlerTodoBatch_Success(t *testing.T) {
+	mock := &MockTodoRepository{
+		CreateTodoError: nil,
+	}
+	repo = mock
+
+	body := `[
+		{"judul":"Belajar Go","prioritas":"tinggi"},
+		{"judul":"Push up","prioritas":"sedang"}
+	]`
+	req := httptest.NewRequest("POST", "/tambah-todo-batch", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+
+	claims := jwt.MapClaims{"user_id": float64(1)}
+	ctx := context.WithValue(req.Context(), "claims", &claims)
+	req = req.WithContext(ctx)
+
+	w := httptest.NewRecorder()
+	handlerTodoBatch(w, req)
+
+	if w.Code != 200 {
+		t.Errorf("expected 200, got %d", w.Code)
+	}
+}
+
+func TestHandlerTodoBatch_MixedValid(t *testing.T) {
+	mock := &MockTodoRepository{
+		CreateTodoError: nil,
+	}
+	repo = mock
+
+	// 1 valid, 1 judul kosong, 1 prioritas invalid
+	body := `[
+		{"judul":"Belajar Go","prioritas":"tinggi"},
+		{"judul":"","prioritas":"sedang"},
+		{"judul":"Makan","prioritas":"xyz"}
+	]`
+	req := httptest.NewRequest("POST", "/tambah-todo-batch", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+
+	claims := jwt.MapClaims{"user_id": float64(1)}
+	ctx := context.WithValue(req.Context(), "claims", &claims)
+	req = req.WithContext(ctx)
+
+	w := httptest.NewRecorder()
+	handlerTodoBatch(w, req)
+
+	// Status tetep 200 karena handler proses semua, tiap item dapet status sendiri
+	if w.Code != 200 {
+		t.Errorf("expected 200, got %d", w.Code)
+	}
+}
+
+func TestHandlerTodoBatch_DatabaseError(t *testing.T) {
+	mock := &MockTodoRepository{
+		CreateTodoError: errors.New("database error"),
+	}
+	repo = mock
+
+	body := `[{"judul":"Belajar Go","prioritas":"tinggi"}]`
+	req := httptest.NewRequest("POST", "/tambah-todo-batch", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+
+	claims := jwt.MapClaims{"user_id": float64(1)}
+	ctx := context.WithValue(req.Context(), "claims", &claims)
+	req = req.WithContext(ctx)
+
+	w := httptest.NewRecorder()
+	handlerTodoBatch(w, req)
+
+	// Status tetep 200 — error per item dilaporin di body, bukan status code
+	if w.Code != 200 {
+		t.Errorf("expected 200, got %d", w.Code)
+	}
+}
+
+func TestHandlerTodoBatch_WrongMethod(t *testing.T) {
+	mock := &MockTodoRepository{}
+	repo = mock
+
+	req := httptest.NewRequest("GET", "/tambah-todo-batch", nil)
+	req.Header.Set("Content-Type", "application/json")
+
+	claims := jwt.MapClaims{"user_id": float64(1)}
+	ctx := context.WithValue(req.Context(), "claims", &claims)
+	req = req.WithContext(ctx)
+
+	w := httptest.NewRecorder()
+	handlerTodoBatch(w, req)
+
+	if w.Code != 405 {
+		t.Errorf("expected 405, got %d", w.Code)
+	}
+}
+
+func TestHandlerTodoBatch_BodyKosong(t *testing.T) {
+	mock := &MockTodoRepository{}
+	repo = mock
+
+	// Array kosong
+	body := `[]`
+	req := httptest.NewRequest("POST", "/tambah-todo-batch", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+
+	claims := jwt.MapClaims{"user_id": float64(1)}
+	ctx := context.WithValue(req.Context(), "claims", &claims)
+	req = req.WithContext(ctx)
+
+	w := httptest.NewRecorder()
+	handlerTodoBatch(w, req)
+
+	if w.Code != 400 {
+		t.Errorf("expected 400, got %d", w.Code)
+	}
+}
+
+func TestHandlerTodoBatch_JSONCacat(t *testing.T) {
+	mock := &MockTodoRepository{}
+	repo = mock
+
+	body := `[{"judul":"Belajar", prioritas... rusak`
+	req := httptest.NewRequest("POST", "/tambah-todo-batch", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+
+	claims := jwt.MapClaims{"user_id": float64(1)}
+	ctx := context.WithValue(req.Context(), "claims", &claims)
+	req = req.WithContext(ctx)
+
+	w := httptest.NewRecorder()
+	handlerTodoBatch(w, req)
+
 	if w.Code != 400 {
 		t.Errorf("expected 400, got %d", w.Code)
 	}

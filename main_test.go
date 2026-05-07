@@ -23,44 +23,65 @@ func (m *MockUserRepository) RegisterUser(user User) error {
 	return m.RegisterError
 }
 
-var response struct {
-	Status string   `json:"status"`
-	Errors []string `json:"errors"`
-}
-
-func TestValidasiTodo(t *testing.T) {
+func TestFormatValidationError(t *testing.T) {
 	tests := []struct {
 		nama     string
 		input    listTodo
-		expected string
+		expected []string
 	}{
 		{
 			nama:     "judul kosong",
 			input:    listTodo{Judul: "", Prioritas: "tinggi"},
-			expected: "judul harus terisi",
+			expected: []string{"judul harus terisi"},
 		},
 		{
 			nama:     "prioritas kosong",
 			input:    listTodo{Judul: "judul", Prioritas: ""},
-			expected: "prioritas harus terisi",
+			expected: []string{"prioritas harus terisi"},
 		},
 		{
 			nama:     "prioritas tidak valid",
 			input:    listTodo{Judul: "judul", Prioritas: "ada"},
-			expected: "prioritas harus berupa tinggi/sedang/rendah",
+			expected: []string{"prioritas harus berupa tinggi sedang rendah"},
+		},
+		{
+			nama:     "judul dan prioritas kosong",
+			input:    listTodo{Judul: "", Prioritas: ""},
+			expected: []string{"judul harus terisi", "prioritas harus terisi"},
 		},
 		{
 			nama:     "valid",
 			input:    listTodo{Judul: "judul", Prioritas: "tinggi"},
-			expected: "",
+			expected: nil, // gak ada error
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.nama, func(t *testing.T) {
-			result := validasiTodo(tt.input)
-			if result != tt.expected {
-				t.Errorf("got %q, want %q", result, tt.expected)
+			err := validate.Struct(tt.input)
+			if tt.expected == nil {
+				if err != nil {
+					t.Errorf("expected no error, got %v", err)
+				}
+				return
+			}
+
+			if err == nil {
+				t.Errorf("expected error %v, got nil", tt.expected)
+				return
+			}
+
+			result := FormatValidationError(err)
+
+			if len(result) != len(tt.expected) {
+				t.Errorf("got %d errors, want %d. result: %v", len(result), len(tt.expected), result)
+				return
+			}
+
+			for i, msg := range tt.expected {
+				if result[i] != msg {
+					t.Errorf("got %q, want %q", result[i], msg)
+				}
 			}
 		})
 	}

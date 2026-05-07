@@ -299,19 +299,6 @@ func sendError(w http.ResponseWriter, message string, statusCode int) {
 	json.NewEncoder(w).Encode(ResponError{Error: message})
 }
 
-func validasiTodo(inputs listTodo) string {
-	if inputs.Judul == "" {
-		return "judul harus terisi"
-	}
-	if inputs.Prioritas == "" {
-		return "prioritas harus terisi"
-	}
-	if inputs.Prioritas != "tinggi" && inputs.Prioritas != "sedang" && inputs.Prioritas != "rendah" {
-		return "prioritas harus berupa tinggi/sedang/rendah"
-	}
-	return ""
-}
-
 type SuccessHandlerTodoSingle struct {
 	Pesan     string `json:"pesan"`
 	Judul     string `json:"judul"`
@@ -397,6 +384,8 @@ func handlerTodoBatch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	userID := getUserID(r)
+
 	var inputs []listTodo
 	err := json.NewDecoder(r.Body).Decode(&inputs)
 	if err != nil {
@@ -409,15 +398,35 @@ func handlerTodoBatch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var hasil []listTodoBatch
+	hasil := make([]listTodoBatch, 0, len(inputs))
+
 	for _, v := range inputs {
-		if pesan := validasiTodo(v); pesan != "" {
+		// 1. Validasi pake validator
+		if err := validate.Struct(v); err != nil {
+			pesanErrors := FormatValidationError(err)
 			hasil = append(hasil, listTodoBatch{
 				Judul: v.Judul,
-				Error: pesan,
+				Error: strings.Join(pesanErrors, ", "),
 			})
 			continue
 		}
+
+		// 2. Simpan ke database
+		err := repo.CreateTodo(Todo{
+			Judul:     v.Judul,
+			Prioritas: v.Prioritas,
+			UserID:    userID,
+		})
+		if err != nil {
+			log.Printf("ERROR handlerTodoBatch - CreateTodo failed: %v, userID: %d", err, userID)
+			hasil = append(hasil, listTodoBatch{
+				Judul: v.Judul,
+				Error: "gagal menyimpan data",
+			})
+			continue
+		}
+
+		// 3. Sukses
 		hasil = append(hasil, listTodoBatch{
 			Judul:     v.Judul,
 			Prioritas: v.Prioritas,
