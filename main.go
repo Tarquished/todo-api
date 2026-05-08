@@ -722,8 +722,6 @@ func main() {
 	repo = NewPostgresTodoRepository(db)
 	UserRepo = NewPostgresUserRepository(db)
 
-	db.AutoMigrate(&Todo{})
-	db.AutoMigrate(&User{})
 	http.HandleFunc("/register", corsMiddleware(recoveryMiddleware(handlerRegister)))
 	http.HandleFunc("/login", corsMiddleware(recoveryMiddleware(handlerLogin)))
 	http.HandleFunc("/tambah-todo", corsMiddleware(recoveryMiddleware(authMiddleware(handlerTodoSingle))))
