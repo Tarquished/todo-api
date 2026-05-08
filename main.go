@@ -6,9 +6,9 @@ import (
 	"reflect"
 	"strings"
 
-	_ "todo-api/docs"
-
+	"time"
 	"todo-api/config"
+	_ "todo-api/docs"
 	"todo-api/handlers"
 	"todo-api/middleware"
 	"todo-api/repository"
@@ -61,7 +61,15 @@ func main() {
 		dsn = viper.GetString("DATABASE_URL")
 	}
 
-	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
+	var db *gorm.DB
+	for i := 0; i < 10; i++ {
+		db, err = gorm.Open(postgres.Open(dsn), &gorm.Config{})
+		if err == nil {
+			break
+		}
+		log.Warn().Int("attempt", i+1).Err(err).Msg("database belum ready, retry...")
+		time.Sleep(2 * time.Second)
+	}
 	if err != nil {
 		log.Fatal().Err(err).Msg("gagal konek ke database")
 	}

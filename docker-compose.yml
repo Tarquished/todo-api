@@ -1,0 +1,39 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: test162534
+      POSTGRES_DB: todoapp
+    ports:
+      - "5433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 2s
+      timeout: 5s
+      retries: 10
+
+  migrate:
+    image: migrate/migrate
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ./migrations:/migrations
+    command: ["-path", "/migrations", "-database", "postgres://postgres:test162534@db:5432/todoapp?sslmode=disable", "up"]
+
+  api:
+    build: .
+    ports:
+      - "8080:8080"
+    environment:
+      DB_HOST: db
+      DB_USER: postgres
+      DB_PASSWORD: test162534
+      DB_NAME: todoapp
+      DB_PORT: "5432"
+      PORT: "8080"
+      JWT_SECRET: test1625jason34
+    depends_on:
+      db:
+        condition: service_healthy
