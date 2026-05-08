@@ -1,671 +1,26 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
 	"net/http"
-	"os"
-	"strconv"
-
-	"context"
+	"reflect"
 	"strings"
-	"time"
-
-	"github.com/rs/zerolog"
-	"github.com/rs/zerolog/log"
 
 	_ "todo-api/docs"
 
-	"github.com/golang-jwt/jwt/v5"
-	httpSwagger "github.com/swaggo/http-swagger"
-	"golang.org/x/crypto/bcrypt"
-	"gorm.io/driver/postgres"
-	"gorm.io/gorm"
-
-	"errors"
-
-	"reflect"
+	"todo-api/config"
+	"todo-api/handlers"
+	"todo-api/middleware"
+	"todo-api/repository"
 
 	"github.com/go-playground/validator/v10"
+	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/log"
 	"github.com/spf13/viper"
+	httpSwagger "github.com/swaggo/http-swagger"
+	"gorm.io/driver/postgres"
+	"gorm.io/gorm"
 )
-
-var db *gorm.DB
-var repo TodoRepository
-var UserRepo UserRepository
-var validate *validator.Validate
-
-type Todo struct {
-	gorm.Model
-	UserID    uint `json:"user_id"`
-	Judul     string
-	Prioritas string
-}
-
-type listTodo struct {
-	Judul     string `json:"judul" validate:"required"`
-	Prioritas string `json:"prioritas" validate:"required,oneof=tinggi sedang rendah"`
-}
-
-type listTodoBatch struct {
-	Judul     string `json:"judul"`
-	Prioritas string `json:"prioritas,omitempty"`
-	Status    string `json:"status,omitempty"`
-	Error     string `json:"error,omitempty"`
-}
-
-type getTodo struct {
-	ID        int    `json:"id"`
-	Judul     string `json:"judul"`
-	Prioritas string `json:"prioritas"`
-}
-
-type ResponError struct {
-	Error string `json:"error"`
-}
-
-type User struct {
-	gorm.Model
-	Username string `json:"username"`
-	Password string `json:"password"`
-}
-
-type InputAuth struct {
-	Username string `json:"username"`
-	Password string `json:"password"`
-}
-
-type ResponPesan struct {
-	Pesan string `json:"pesan" example:"Berhasil menambahkan username ke database"`
-}
-
-func loadConfig() error {
-	viper.SetConfigFile(".env")
-
-	err := viper.ReadInConfig()
-	if err != nil {
-		return err
-	}
-
-	viper.AutomaticEnv()
-
-	return nil
-}
-func FormatValidationError(err error) []string {
-
-	var validationErrs validator.ValidationErrors
-	var errorMessages []string
-
-	if errors.As(err, &validationErrs) {
-		for _, e := range validationErrs {
-
-			switch e.Tag() {
-			case "required":
-				pesan := fmt.Sprintf("%s harus terisi", e.Field())
-				errorMessages = append(errorMessages, pesan)
-
-			case "oneof":
-				pesan := fmt.Sprintf("%s harus berupa %s", e.Field(), e.Param())
-				errorMessages = append(errorMessages, pesan)
-			}
-		}
-	}
-
-	return errorMessages
-}
-
-func getUserID(r *http.Request) uint {
-	claims := r.Context().Value("claims").(*jwt.MapClaims)
-	userID := uint((*claims)["user_id"].(float64))
-	return userID
-}
-
-// handlerRegister godoc
-// @Summary      Register user baru
-// @Description  Mendaftarkan user baru dengan username dan password
-// @Description  Password akan di-hash menggunakan bcrypt sebelum disimpan
-// @Tags         Auth
-// @Accept       json
-// @Produce      json
-// @Param        request  body      InputAuth      true  "Username dan password"
-// @Success      200      {object}  ResponPesan
-// @Failure      400      {object}  ResponError
-// @Failure      405      {object}  ResponError
-// @Router       /register [post]
-func handlerRegister(w http.ResponseWriter, r *http.Request) {
-	if r.Method != "POST" {
-		sendError(w, "method harus POST", 405)
-		return
-	}
-
-	var input InputAuth
-	err := json.NewDecoder(r.Body).Decode(&input)
-	if err != nil {
-		sendError(w, "format JSON tidak valid", 400)
-		return
-	}
-
-	if input.Username == "" {
-		sendError(w, "mohon isi username", 400)
-		return
-	}
-	if input.Password == "" {
-		sendError(w, "mohon isi password", 400)
-		return
-	}
-
-	_, results := UserRepo.CheckUser(input.Username)
-	if results == nil {
-		sendError(w, "username sudah ada", 400)
-		return
-	}
-	hashPassword, err := bcrypt.GenerateFromPassword([]byte(input.Password), 14)
-	if err != nil {
-		sendError(w, "error saat hashing password", 400)
-		return
-	}
-
-	err = UserRepo.RegisterUser(User{
-		Username: input.Username,
-		Password: string(hashPassword),
-	})
-
-	if err != nil {
-		sendError(w, "gagal menyimpan user", 500)
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(ResponPesan{
-		Pesan: "Berhasil menambahkan username ke database",
-	})
-}
-
-type SuccessResponLogin struct {
-	Pesan string `json:"pesan" example:"Berhasil login!"`
-	Token string `json:"token"`
-}
-
-// handlerLogin godoc
-// @Summary 	Login user
-// @Description	Melakukan login dengan username dan password yang sudah ada dalam database
-// @Description	Password akan diverify dan akan diberikan JWT Token
-// @Tags		Auth
-// @Accept		json
-// @Produce		json
-// @Param		request	body		InputAuth	true	"Username dan password"
-// @Success		200		{object}	SuccessResponLogin
-// @Failure		400		{object}	ResponError
-// @Failure		405		{object}	ResponError
-// @Router		/login	[post]
-func handlerLogin(w http.ResponseWriter, r *http.Request) {
-	if r.Method != "POST" {
-		sendError(w, "method harus POST", 405)
-		return
-	}
-
-	var input InputAuth
-	err := json.NewDecoder(r.Body).Decode(&input)
-
-	if err != nil {
-		sendError(w, "format JSON salah", 400)
-		return
-	}
-	if input.Username == "" {
-		sendError(w, "mohon isi username", 400)
-		return
-	}
-	if input.Password == "" {
-		sendError(w, "mohon isi password", 400)
-		return
-	}
-
-	var user User
-
-	user, results := UserRepo.CheckUser(input.Username)
-	if results != nil {
-		sendError(w, "username belum ada", 400)
-		return
-	}
-
-	err = bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(input.Password))
-	if err != nil {
-		sendError(w, "password salah", 400)
-		return
-	}
-
-	claims := jwt.MapClaims{
-		"user_id":  user.ID,
-		"username": user.Username,
-		"exp":      time.Now().Add(24 * time.Hour).Unix(),
-	}
-
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-
-	secretkey := viper.GetString("JWT_SECRET")
-	if secretkey == "" {
-		secretkey = "test1625jason34"
-	}
-	tokenString, err := token.SignedString([]byte(secretkey))
-
-	if err != nil {
-		sendError(w, "gagal generate token", 400)
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(SuccessResponLogin{
-		Pesan: "Berhasil login!",
-		Token: tokenString,
-	})
-}
-
-func algoritma(t *jwt.Token) (interface{}, error) {
-	secretkey := viper.GetString("JWT_SECRET")
-	if secretkey == "" {
-		secretkey = "test1625jason34"
-	}
-	return []byte(secretkey), nil
-}
-
-func verifyToken(r *http.Request) (*jwt.MapClaims, error) {
-	token := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
-	claims := &jwt.MapClaims{}
-
-	responToken, err := jwt.ParseWithClaims(token, claims, algoritma)
-
-	if err != nil {
-		return nil, err
-	}
-	if !responToken.Valid {
-		return nil, fmt.Errorf("token tidak valid")
-	}
-	return claims, nil
-}
-
-func authMiddleware(next http.HandlerFunc) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		claims, err := verifyToken(r)
-		if err != nil {
-			sendError(w, "tidak valid", 401)
-			return
-		}
-		ctx := context.WithValue(r.Context(), "claims", claims)
-		next(w, r.WithContext(ctx))
-	}
-}
-
-func sendError(w http.ResponseWriter, message string, statusCode int) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(statusCode)
-	json.NewEncoder(w).Encode(ResponError{Error: message})
-}
-
-type SuccessHandlerTodoSingle struct {
-	Pesan     string `json:"pesan"`
-	Judul     string `json:"judul"`
-	Prioritas string `json:"prioritas"`
-}
-
-// handlerTodoSingle godoc
-// @Summary	Membuat To-Do secara single
-// @Description	Mendaftarkan To-Do ke dalam database dengan melakukan verify JWT terlebih dahulu
-// @Tags		Todo
-// @Accept		json
-// @Produce		json
-// @Param		request	body	listTodo	true	"Judul dan Prioritas"
-// @Security 	BearerAuth
-// @Success		200		{object}	SuccessHandlerTodoSingle
-// @Failure		400		{object}	ResponError
-// @Failure		405		{object}	ResponError
-// @Router		/tambah-todo	[post]
-func handlerTodoSingle(w http.ResponseWriter, r *http.Request) {
-	if r.Method != "POST" {
-		sendError(w, "method harus POST", 405)
-		return
-	}
-
-	userID := getUserID(r)
-
-	var inputs listTodo
-	err := json.NewDecoder(r.Body).Decode(&inputs)
-	if err != nil {
-		sendError(w, "format JSON tidak valid", 400)
-		return
-	}
-
-	err = validate.Struct(inputs)
-
-	if err != nil {
-		pesanError := FormatValidationError(err)
-
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(map[string]any{
-			"status": "fail",
-			"errors": pesanError,
-		})
-		return
-	}
-
-	err = repo.CreateTodo(Todo{
-		Judul:     inputs.Judul,
-		Prioritas: inputs.Prioritas,
-		UserID:    userID,
-	})
-
-	if err != nil {
-		log.Error().
-			Err(err).
-			Uint("userID", userID).
-			Str("handler", "handlerTodoSingle").
-			Msg("gagal menyimpan todo")
-		sendError(w, "gagal menyimpan data", 500)
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(SuccessHandlerTodoSingle{
-		Pesan:     "Todo berhasil ditambahkan",
-		Judul:     inputs.Judul,
-		Prioritas: inputs.Prioritas,
-	})
-}
-
-// handlerTodoBatch godoc
-// @Summary	Membuat To-Do secara batch
-// @Description	Mendaftarkan To-Do batch ke dalam database dengan melakukan verify JWT terlebih dahulu
-// @Tags		Todo
-// @Accept		json
-// @Produce		json
-// @Param		request	body	[]listTodo	true	"List todo"
-// @Security 	BearerAuth
-// @Success		200		{array}		listTodoBatch
-// @Failure		400		{object}	ResponError
-// @Failure		405		{object}	ResponError
-// @Router		/tambah-todo-batch	[post]
-func handlerTodoBatch(w http.ResponseWriter, r *http.Request) {
-	if r.Method != "POST" {
-		sendError(w, "method harus POST", 405)
-		return
-	}
-
-	userID := getUserID(r)
-
-	var inputs []listTodo
-	err := json.NewDecoder(r.Body).Decode(&inputs)
-	if err != nil {
-		sendError(w, "format JSON tidak valid", 400)
-		return
-	}
-
-	if len(inputs) == 0 {
-		sendError(w, "data tidak boleh kosong", 400)
-		return
-	}
-
-	hasil := make([]listTodoBatch, 0, len(inputs))
-
-	for _, v := range inputs {
-		// 1. Validasi pake validator
-		if err := validate.Struct(v); err != nil {
-			pesanErrors := FormatValidationError(err)
-			hasil = append(hasil, listTodoBatch{
-				Judul: v.Judul,
-				Error: strings.Join(pesanErrors, ", "),
-			})
-			continue
-		}
-
-		// 2. Simpan ke database
-		err := repo.CreateTodo(Todo{
-			Judul:     v.Judul,
-			Prioritas: v.Prioritas,
-			UserID:    userID,
-		})
-		if err != nil {
-			log.Error().
-				Err(err).
-				Uint("userID", userID).
-				Str("handler", "handlerTodoBatch").
-				Msg("gagal menyimpan todo")
-			hasil = append(hasil, listTodoBatch{
-				Judul: v.Judul,
-				Error: "gagal menyimpan data",
-			})
-			continue
-		}
-
-		// 3. Sukses
-		hasil = append(hasil, listTodoBatch{
-			Judul:     v.Judul,
-			Prioritas: v.Prioritas,
-			Status:    "berhasil",
-		})
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(hasil)
-}
-
-type PageData struct {
-	Page  int       `json:"page"`
-	Limit int       `json:"limit"`
-	Total int64     `json:"total"`
-	Data  []getTodo `json:"data"`
-}
-
-// handlerTodos godoc
-// @Summary		Menampilkan semua To-Do User
-// @Description	Menampilkan isi dari semua To-Do yang dimiliki oleh user
-// @Description	Memverifikasi ID dan token yang dipakai melalui JWT verification
-// @Tags		Todo
-// @Produce		json
-// @Param		page	query	int	false	"Nomor halaman (default: 1)"
-// @Param		limit	query	int	false	"Jumlah data per halaman (default: 10)"
-// @Security 	BearerAuth
-// @Success		200		{object}	PageData
-// @Failure		405		{object}	ResponError
-// @Router		/todos	[get]
-func handlerTodos(w http.ResponseWriter, r *http.Request) {
-	if r.Method != "GET" {
-		sendError(w, "method harus GET", 405)
-		return
-	}
-
-	pageStr := r.URL.Query().Get("page")
-	limitStr := r.URL.Query().Get("limit")
-
-	page, err := strconv.Atoi(pageStr)
-	if err != nil || page < 1 {
-		page = 1
-	}
-	limit, err := strconv.Atoi(limitStr)
-	if err != nil || limit < 1 {
-		limit = 10
-	}
-
-	offset := (page - 1) * limit
-	userID := getUserID(r)
-
-	todos, total, err := repo.GetTodos(userID, limit, offset)
-
-	if err != nil {
-		log.Error().
-			Err(err).
-			Uint("userID", userID).
-			Str("handler", "handlerTodos").
-			Msg("gagal menampilkan todos")
-		sendError(w, "gagal mengambil data", 500)
-		return
-	}
-
-	var hasil []getTodo
-	for _, v := range todos {
-		hasil = append(hasil, getTodo{
-			ID:        int(v.ID),
-			Judul:     v.Judul,
-			Prioritas: v.Prioritas,
-		})
-	}
-	page_data := PageData{
-		Page:  page,
-		Limit: limit,
-		Total: total,
-		Data:  hasil,
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(page_data)
-}
-
-type SuccessHandlerHapusUpdateTodo struct {
-	Pesan string `json:"pesan"`
-}
-
-// handlerHapusTodo godoc
-// @Summary		Menghapus To-Do berdasarkan ID
-// @Description	Untuk menghapus suatu To-Do dengan ID yang diberikan
-// @Description	Diverifikasi melalui JWT Token untuk mengecek kepemilikan
-// @Tags		Todo
-// @Produce		json
-// @Param		id	query	int	true	"ID"
-// @Security	BearerAuth
-// @Success		200		{object}	SuccessHandlerHapusUpdateTodo
-// @Failure		400		{object}	ResponError
-// @Failure		405		{object}	ResponError
-// @Router		/hapus-todo	[delete]
-func handlerHapusTodo(w http.ResponseWriter, r *http.Request) {
-	if r.Method != "DELETE" {
-		sendError(w, "method harus DELETE", 405)
-		return
-	}
-
-	strID := r.URL.Query().Get("id")
-	id, err := strconv.Atoi(strID)
-	if err != nil {
-		sendError(w, "ID tidak valid", 400)
-		return
-	}
-	if id == 0 {
-		sendError(w, "ID tidak terdaftar", 400)
-		return
-	}
-	userID := getUserID(r)
-	err = repo.DeleteTodo(id, userID)
-	if err != nil {
-		log.Error().
-			Err(err).
-			Uint("userID", userID).
-			Str("handler", "handlerHapusTodo").
-			Msg("gagal menghapus todo")
-		sendError(w, "gagal menghapus data", 500)
-		return
-	}
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(SuccessHandlerHapusUpdateTodo{
-		Pesan: "Todo berhasil dihapus",
-	})
-}
-
-// handlerUpdateTodo godoc
-// @Summary		Mengupdate To-Do berdasarkan ID
-// @Description	Untuk mengubah suatu To-Do dengan ID yang diberikan
-// @Description	Diverifikasi melalui JWT Token untuk mengecek kepemilikan
-// @Tags		Todo
-// @Produce		json
-// @Accept		json
-// @Param		id	query	int	true	"ID"
-// @Param		request	body	listTodo	true	"listTodo"
-// @Security	BearerAuth
-// @Success		200		{object}	SuccessHandlerHapusUpdateTodo
-// @Failure		400		{object}	ResponError
-// @Failure		405		{object}	ResponError
-// @Router		/update-todo	[put]
-func handlerUpdateTodo(w http.ResponseWriter, r *http.Request) {
-	if r.Method != "PUT" {
-		sendError(w, "method harus PUT", 405)
-		return
-	}
-
-	strID := r.URL.Query().Get("id")
-	id, err := strconv.Atoi(strID)
-	if err != nil {
-		sendError(w, "ID tidak valid", 400)
-		return
-	}
-	if id == 0 {
-		sendError(w, "ID tidak terdaftar", 400)
-		return
-	}
-
-	var inputs listTodo
-	err = json.NewDecoder(r.Body).Decode(&inputs)
-	if err != nil {
-		sendError(w, "format JSON tidak valid", 400)
-		return
-	}
-
-	err = validate.Struct(inputs)
-
-	if err != nil {
-		pesanError := FormatValidationError(err)
-
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(map[string]any{
-			"status": "fail",
-			"errors": pesanError,
-		})
-		return
-	}
-
-	userID := getUserID(r)
-	err = repo.UpdateTodo(id, userID, inputs.Judul, inputs.Prioritas)
-
-	if err != nil {
-		log.Error().
-			Err(err).
-			Uint("userID", userID).
-			Str("handler", "handlerUpdateTodo").
-			Msg("gagal update todo")
-		sendError(w, "gagal mengupdate data", 500)
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(SuccessHandlerHapusUpdateTodo{
-		Pesan: "Todo berhasil diupdate",
-	})
-}
-
-func recoveryMiddleware(next http.HandlerFunc) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		defer func() {
-			if err := recover(); err != nil {
-				log.Error().
-					Interface("panic", err).
-					Msg("panic recovered")
-				sendError(w, "terjadi kesalahan", 500)
-			}
-		}()
-		next(w, r)
-	}
-
-}
-func corsMiddleware(next http.HandlerFunc) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Access-Control-Allow-Origin", "*")
-		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
-
-		if r.Method == "OPTIONS" {
-			w.WriteHeader(http.StatusOK)
-			return
-		}
-		next(w, r)
-	}
-}
 
 // @title           Todo API
 // @version         1.0
@@ -676,7 +31,7 @@ func corsMiddleware(next http.HandlerFunc) http.HandlerFunc {
 // @contact.url     https://github.com/Tarquished
 
 // @host            todo-api-production-74d1.up.railway.app
-// @schemes 		https
+// @schemes         https
 // @BasePath        /
 
 // @securityDefinitions.apikey BearerAuth
@@ -685,14 +40,16 @@ func corsMiddleware(next http.HandlerFunc) http.HandlerFunc {
 // @description     Masukkan token dengan format: Bearer <token>
 
 func main() {
-	var err error
+	// Logging
 	zerolog.TimeFieldFormat = zerolog.TimeFormatUnix
-	err = loadConfig()
+
+	// Config
+	err := config.LoadConfig()
 	if err != nil {
-		log.Warn().
-			Err(err).
-			Msg("file .env tidak ditemukan, menggunakan variabel sistem")
+		log.Warn().Err(err).Msg("file .env tidak ditemukan, menggunakan variabel sistem")
 	}
+
+	// Database
 	dsn := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%s sslmode=disable",
 		viper.GetString("DB_HOST"),
 		viper.GetString("DB_USER"),
@@ -701,10 +58,17 @@ func main() {
 		viper.GetString("DB_PORT"),
 	)
 	if viper.GetString("DB_HOST") == "" {
-		dsn = os.Getenv("DATABASE_URL")
+		dsn = viper.GetString("DATABASE_URL")
 	}
-	validate = validator.New()
-	validate.RegisterTagNameFunc(func(fld reflect.StructField) string {
+
+	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
+	if err != nil {
+		log.Fatal().Err(err).Msg("gagal konek ke database")
+	}
+
+	// Validator
+	handlers.Validate = validator.New()
+	handlers.Validate.RegisterTagNameFunc(func(fld reflect.StructField) string {
 		name := strings.SplitN(fld.Tag.Get("json"), ",", 2)[0]
 		if name == "-" {
 			return ""
@@ -712,24 +76,21 @@ func main() {
 		return name
 	})
 
-	db, err = gorm.Open(postgres.Open(dsn), &gorm.Config{})
-	if err != nil {
-		log.Fatal().
-			Err(err).
-			Msg("gagal konek ke database")
-		return
-	}
-	repo = NewPostgresTodoRepository(db)
-	UserRepo = NewPostgresUserRepository(db)
+	// Repository
+	handlers.Repo = repository.NewPostgresTodoRepository(db)
+	handlers.UserRepo = repository.NewPostgresUserRepository(db)
 
-	http.HandleFunc("/register", corsMiddleware(recoveryMiddleware(handlerRegister)))
-	http.HandleFunc("/login", corsMiddleware(recoveryMiddleware(handlerLogin)))
-	http.HandleFunc("/tambah-todo", corsMiddleware(recoveryMiddleware(authMiddleware(handlerTodoSingle))))
-	http.HandleFunc("/tambah-todo-batch", corsMiddleware(recoveryMiddleware(authMiddleware(handlerTodoBatch))))
-	http.HandleFunc("/todos", corsMiddleware(recoveryMiddleware(authMiddleware(handlerTodos))))
-	http.HandleFunc("/hapus-todo", corsMiddleware(recoveryMiddleware(authMiddleware(handlerHapusTodo))))
-	http.HandleFunc("/update-todo", corsMiddleware(recoveryMiddleware(authMiddleware(handlerUpdateTodo))))
+	// Routes
+	http.HandleFunc("/register", middleware.CorsMiddleware(middleware.RecoveryMiddleware(handlers.HandlerRegister)))
+	http.HandleFunc("/login", middleware.CorsMiddleware(middleware.RecoveryMiddleware(handlers.HandlerLogin)))
+	http.HandleFunc("/tambah-todo", middleware.CorsMiddleware(middleware.RecoveryMiddleware(middleware.AuthMiddleware(handlers.HandlerTodoSingle))))
+	http.HandleFunc("/tambah-todo-batch", middleware.CorsMiddleware(middleware.RecoveryMiddleware(middleware.AuthMiddleware(handlers.HandlerTodoBatch))))
+	http.HandleFunc("/todos", middleware.CorsMiddleware(middleware.RecoveryMiddleware(middleware.AuthMiddleware(handlers.HandlerTodos))))
+	http.HandleFunc("/hapus-todo", middleware.CorsMiddleware(middleware.RecoveryMiddleware(middleware.AuthMiddleware(handlers.HandlerHapusTodo))))
+	http.HandleFunc("/update-todo", middleware.CorsMiddleware(middleware.RecoveryMiddleware(middleware.AuthMiddleware(handlers.HandlerUpdateTodo))))
 	http.HandleFunc("/swagger/", httpSwagger.WrapHandler)
+
+	// Start
 	port := viper.GetString("PORT")
 	if port == "" {
 		port = "8080"
@@ -737,6 +98,6 @@ func main() {
 
 	log.Info().Str("port", port).Msg("server started")
 	if err := http.ListenAndServe("0.0.0.0:"+port, nil); err != nil {
-		fmt.Println("Server error:", err)
+		log.Fatal().Err(err).Msg("server error")
 	}
 }

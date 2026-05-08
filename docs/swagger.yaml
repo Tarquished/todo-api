@@ -1,59 +1,6 @@
 basePath: /
 definitions:
-  main.InputAuth:
-    properties:
-      password:
-        type: string
-      username:
-        type: string
-    type: object
-  main.PageData:
-    properties:
-      data:
-        items:
-          $ref: '#/definitions/main.getTodo'
-        type: array
-      limit:
-        type: integer
-      page:
-        type: integer
-      total:
-        type: integer
-    type: object
-  main.ResponError:
-    properties:
-      error:
-        type: string
-    type: object
-  main.ResponPesan:
-    properties:
-      pesan:
-        example: Berhasil menambahkan username ke database
-        type: string
-    type: object
-  main.SuccessHandlerHapusUpdateTodo:
-    properties:
-      pesan:
-        type: string
-    type: object
-  main.SuccessHandlerTodoSingle:
-    properties:
-      judul:
-        type: string
-      pesan:
-        type: string
-      prioritas:
-        type: string
-    type: object
-  main.SuccessResponLogin:
-    properties:
-      pesan:
-        example: Berhasil login!
-        type: string
-      token:
-        type: string
-    type: object
-  main.getTodo:
+  models.GetTodo:
     properties:
       id:
         type: integer
@@ -62,14 +9,28 @@ definitions:
       prioritas:
         type: string
     type: object
-  main.listTodo:
+  models.InputAuth:
+    properties:
+      password:
+        type: string
+      username:
+        type: string
+    type: object
+  models.ListTodo:
     properties:
       judul:
         type: string
       prioritas:
+        enum:
+        - tinggi
+        - sedang
+        - rendah
         type: string
+    required:
+    - judul
+    - prioritas
     type: object
-  main.listTodoBatch:
+  models.ListTodoBatch:
     properties:
       error:
         type: string
@@ -78,6 +39,52 @@ definitions:
       prioritas:
         type: string
       status:
+        type: string
+    type: object
+  models.PageData:
+    properties:
+      data:
+        items:
+          $ref: '#/definitions/models.GetTodo'
+        type: array
+      limit:
+        type: integer
+      page:
+        type: integer
+      total:
+        type: integer
+    type: object
+  models.ResponError:
+    properties:
+      error:
+        type: string
+    type: object
+  models.ResponPesan:
+    properties:
+      pesan:
+        example: Berhasil menambahkan username ke database
+        type: string
+    type: object
+  models.SuccessHandlerHapusUpdateTodo:
+    properties:
+      pesan:
+        type: string
+    type: object
+  models.SuccessHandlerTodoSingle:
+    properties:
+      judul:
+        type: string
+      pesan:
+        type: string
+      prioritas:
+        type: string
+    type: object
+  models.SuccessResponLogin:
+    properties:
+      pesan:
+        example: Berhasil login!
+        type: string
+      token:
         type: string
     type: object
 host: todo-api-production-74d1.up.railway.app
@@ -93,9 +100,7 @@ info:
 paths:
   /hapus-todo:
     delete:
-      description: |-
-        Untuk menghapus suatu To-Do dengan ID yang diberikan
-        Diverifikasi melalui JWT Token untuk mengecek kepemilikan
+      description: Untuk menghapus suatu To-Do dengan ID yang diberikan
       parameters:
       - description: ID
         in: query
@@ -108,15 +113,15 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/main.SuccessHandlerHapusUpdateTodo'
+            $ref: '#/definitions/models.SuccessHandlerHapusUpdateTodo'
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/main.ResponError'
+            $ref: '#/definitions/models.ResponError'
         "405":
           description: Method Not Allowed
           schema:
-            $ref: '#/definitions/main.ResponError'
+            $ref: '#/definitions/models.ResponError'
       security:
       - BearerAuth: []
       summary: Menghapus To-Do berdasarkan ID
@@ -135,22 +140,22 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/main.InputAuth'
+          $ref: '#/definitions/models.InputAuth'
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/main.SuccessResponLogin'
+            $ref: '#/definitions/models.SuccessResponLogin'
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/main.ResponError'
+            $ref: '#/definitions/models.ResponError'
         "405":
           description: Method Not Allowed
           schema:
-            $ref: '#/definitions/main.ResponError'
+            $ref: '#/definitions/models.ResponError'
       summary: Login user
       tags:
       - Auth
@@ -167,22 +172,22 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/main.InputAuth'
+          $ref: '#/definitions/models.InputAuth'
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/main.ResponPesan'
+            $ref: '#/definitions/models.ResponPesan'
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/main.ResponError'
+            $ref: '#/definitions/models.ResponError'
         "405":
           description: Method Not Allowed
           schema:
-            $ref: '#/definitions/main.ResponError'
+            $ref: '#/definitions/models.ResponError'
       summary: Register user baru
       tags:
       - Auth
@@ -198,22 +203,22 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/main.listTodo'
+          $ref: '#/definitions/models.ListTodo'
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/main.SuccessHandlerTodoSingle'
+            $ref: '#/definitions/models.SuccessHandlerTodoSingle'
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/main.ResponError'
+            $ref: '#/definitions/models.ResponError'
         "405":
           description: Method Not Allowed
           schema:
-            $ref: '#/definitions/main.ResponError'
+            $ref: '#/definitions/models.ResponError'
       security:
       - BearerAuth: []
       summary: Membuat To-Do secara single
@@ -232,7 +237,7 @@ paths:
         required: true
         schema:
           items:
-            $ref: '#/definitions/main.listTodo'
+            $ref: '#/definitions/models.ListTodo'
           type: array
       produces:
       - application/json
@@ -241,16 +246,16 @@ paths:
           description: OK
           schema:
             items:
-              $ref: '#/definitions/main.listTodoBatch'
+              $ref: '#/definitions/models.ListTodoBatch'
             type: array
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/main.ResponError'
+            $ref: '#/definitions/models.ResponError'
         "405":
           description: Method Not Allowed
           schema:
-            $ref: '#/definitions/main.ResponError'
+            $ref: '#/definitions/models.ResponError'
       security:
       - BearerAuth: []
       summary: Membuat To-Do secara batch
@@ -258,9 +263,7 @@ paths:
       - Todo
   /todos:
     get:
-      description: |-
-        Menampilkan isi dari semua To-Do yang dimiliki oleh user
-        Memverifikasi ID dan token yang dipakai melalui JWT verification
+      description: Menampilkan isi dari semua To-Do yang dimiliki oleh user
       parameters:
       - description: 'Nomor halaman (default: 1)'
         in: query
@@ -276,11 +279,11 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/main.PageData'
+            $ref: '#/definitions/models.PageData'
         "405":
           description: Method Not Allowed
           schema:
-            $ref: '#/definitions/main.ResponError'
+            $ref: '#/definitions/models.ResponError'
       security:
       - BearerAuth: []
       summary: Menampilkan semua To-Do User
@@ -290,9 +293,7 @@ paths:
     put:
       consumes:
       - application/json
-      description: |-
-        Untuk mengubah suatu To-Do dengan ID yang diberikan
-        Diverifikasi melalui JWT Token untuk mengecek kepemilikan
+      description: Untuk mengubah suatu To-Do dengan ID yang diberikan
       parameters:
       - description: ID
         in: query
@@ -304,22 +305,22 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/main.listTodo'
+          $ref: '#/definitions/models.ListTodo'
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/main.SuccessHandlerHapusUpdateTodo'
+            $ref: '#/definitions/models.SuccessHandlerHapusUpdateTodo'
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/main.ResponError'
+            $ref: '#/definitions/models.ResponError'
         "405":
           description: Method Not Allowed
           schema:
-            $ref: '#/definitions/main.ResponError'
+            $ref: '#/definitions/models.ResponError'
       security:
       - BearerAuth: []
       summary: Mengupdate To-Do berdasarkan ID

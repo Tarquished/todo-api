@@ -25,7 +25,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Untuk menghapus suatu To-Do dengan ID yang diberikan\nDiverifikasi melalui JWT Token untuk mengecek kepemilikan",
+                "description": "Untuk menghapus suatu To-Do dengan ID yang diberikan",
                 "produces": [
                     "application/json"
                 ],
@@ -46,19 +46,19 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/main.SuccessHandlerHapusUpdateTodo"
+                            "$ref": "#/definitions/models.SuccessHandlerHapusUpdateTodo"
                         }
                     },
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/main.ResponError"
+                            "$ref": "#/definitions/models.ResponError"
                         }
                     },
                     "405": {
                         "description": "Method Not Allowed",
                         "schema": {
-                            "$ref": "#/definitions/main.ResponError"
+                            "$ref": "#/definitions/models.ResponError"
                         }
                     }
                 }
@@ -84,7 +84,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/main.InputAuth"
+                            "$ref": "#/definitions/models.InputAuth"
                         }
                     }
                 ],
@@ -92,19 +92,19 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/main.SuccessResponLogin"
+                            "$ref": "#/definitions/models.SuccessResponLogin"
                         }
                     },
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/main.ResponError"
+                            "$ref": "#/definitions/models.ResponError"
                         }
                     },
                     "405": {
                         "description": "Method Not Allowed",
                         "schema": {
-                            "$ref": "#/definitions/main.ResponError"
+                            "$ref": "#/definitions/models.ResponError"
                         }
                     }
                 }
@@ -130,7 +130,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/main.InputAuth"
+                            "$ref": "#/definitions/models.InputAuth"
                         }
                     }
                 ],
@@ -138,19 +138,19 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/main.ResponPesan"
+                            "$ref": "#/definitions/models.ResponPesan"
                         }
                     },
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/main.ResponError"
+                            "$ref": "#/definitions/models.ResponError"
                         }
                     },
                     "405": {
                         "description": "Method Not Allowed",
                         "schema": {
-                            "$ref": "#/definitions/main.ResponError"
+                            "$ref": "#/definitions/models.ResponError"
                         }
                     }
                 }
@@ -181,7 +181,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/main.listTodo"
+                            "$ref": "#/definitions/models.ListTodo"
                         }
                     }
                 ],
@@ -189,19 +189,19 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/main.SuccessHandlerTodoSingle"
+                            "$ref": "#/definitions/models.SuccessHandlerTodoSingle"
                         }
                     },
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/main.ResponError"
+                            "$ref": "#/definitions/models.ResponError"
                         }
                     },
                     "405": {
                         "description": "Method Not Allowed",
                         "schema": {
-                            "$ref": "#/definitions/main.ResponError"
+                            "$ref": "#/definitions/models.ResponError"
                         }
                     }
                 }
@@ -234,7 +234,7 @@ const docTemplate = `{
                         "schema": {
                             "type": "array",
                             "items": {
-                                "$ref": "#/definitions/main.listTodo"
+                                "$ref": "#/definitions/models.ListTodo"
                             }
                         }
                     }
@@ -245,20 +245,20 @@ const docTemplate = `{
                         "schema": {
                             "type": "array",
                             "items": {
-                                "$ref": "#/definitions/main.listTodoBatch"
+                                "$ref": "#/definitions/models.ListTodoBatch"
                             }
                         }
                     },
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/main.ResponError"
+                            "$ref": "#/definitions/models.ResponError"
                         }
                     },
                     "405": {
                         "description": "Method Not Allowed",
                         "schema": {
-                            "$ref": "#/definitions/main.ResponError"
+                            "$ref": "#/definitions/models.ResponError"
                         }
                     }
                 }
@@ -271,7 +271,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Menampilkan isi dari semua To-Do yang dimiliki oleh user\nMemverifikasi ID dan token yang dipakai melalui JWT verification",
+                "description": "Menampilkan isi dari semua To-Do yang dimiliki oleh user",
                 "produces": [
                     "application/json"
                 ],
@@ -297,13 +297,13 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/main.PageData"
+                            "$ref": "#/definitions/models.PageData"
                         }
                     },
                     "405": {
                         "description": "Method Not Allowed",
                         "schema": {
-                            "$ref": "#/definitions/main.ResponError"
+                            "$ref": "#/definitions/models.ResponError"
                         }
                     }
                 }
@@ -316,7 +316,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Untuk mengubah suatu To-Do dengan ID yang diberikan\nDiverifikasi melalui JWT Token untuk mengecek kepemilikan",
+                "description": "Untuk mengubah suatu To-Do dengan ID yang diberikan",
                 "consumes": [
                     "application/json"
                 ],
@@ -341,7 +341,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/main.listTodo"
+                            "$ref": "#/definitions/models.ListTodo"
                         }
                     }
                 ],
@@ -349,19 +349,19 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/main.SuccessHandlerHapusUpdateTodo"
+                            "$ref": "#/definitions/models.SuccessHandlerHapusUpdateTodo"
                         }
                     },
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/main.ResponError"
+                            "$ref": "#/definitions/models.ResponError"
                         }
                     },
                     "405": {
                         "description": "Method Not Allowed",
                         "schema": {
-                            "$ref": "#/definitions/main.ResponError"
+                            "$ref": "#/definitions/models.ResponError"
                         }
                     }
                 }
@@ -369,89 +369,7 @@ const docTemplate = `{
         }
     },
     "definitions": {
-        "main.InputAuth": {
-            "type": "object",
-            "properties": {
-                "password": {
-                    "type": "string"
-                },
-                "username": {
-                    "type": "string"
-                }
-            }
-        },
-        "main.PageData": {
-            "type": "object",
-            "properties": {
-                "data": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/main.getTodo"
-                    }
-                },
-                "limit": {
-                    "type": "integer"
-                },
-                "page": {
-                    "type": "integer"
-                },
-                "total": {
-                    "type": "integer"
-                }
-            }
-        },
-        "main.ResponError": {
-            "type": "object",
-            "properties": {
-                "error": {
-                    "type": "string"
-                }
-            }
-        },
-        "main.ResponPesan": {
-            "type": "object",
-            "properties": {
-                "pesan": {
-                    "type": "string",
-                    "example": "Berhasil menambahkan username ke database"
-                }
-            }
-        },
-        "main.SuccessHandlerHapusUpdateTodo": {
-            "type": "object",
-            "properties": {
-                "pesan": {
-                    "type": "string"
-                }
-            }
-        },
-        "main.SuccessHandlerTodoSingle": {
-            "type": "object",
-            "properties": {
-                "judul": {
-                    "type": "string"
-                },
-                "pesan": {
-                    "type": "string"
-                },
-                "prioritas": {
-                    "type": "string"
-                }
-            }
-        },
-        "main.SuccessResponLogin": {
-            "type": "object",
-            "properties": {
-                "pesan": {
-                    "type": "string",
-                    "example": "Berhasil login!"
-                },
-                "token": {
-                    "type": "string"
-                }
-            }
-        },
-        "main.getTodo": {
+        "models.GetTodo": {
             "type": "object",
             "properties": {
                 "id": {
@@ -465,18 +383,38 @@ const docTemplate = `{
                 }
             }
         },
-        "main.listTodo": {
+        "models.InputAuth": {
             "type": "object",
+            "properties": {
+                "password": {
+                    "type": "string"
+                },
+                "username": {
+                    "type": "string"
+                }
+            }
+        },
+        "models.ListTodo": {
+            "type": "object",
+            "required": [
+                "judul",
+                "prioritas"
+            ],
             "properties": {
                 "judul": {
                     "type": "string"
                 },
                 "prioritas": {
-                    "type": "string"
+                    "type": "string",
+                    "enum": [
+                        "tinggi",
+                        "sedang",
+                        "rendah"
+                    ]
                 }
             }
         },
-        "main.listTodoBatch": {
+        "models.ListTodoBatch": {
             "type": "object",
             "properties": {
                 "error": {
@@ -489,6 +427,77 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "status": {
+                    "type": "string"
+                }
+            }
+        },
+        "models.PageData": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.GetTodo"
+                    }
+                },
+                "limit": {
+                    "type": "integer"
+                },
+                "page": {
+                    "type": "integer"
+                },
+                "total": {
+                    "type": "integer"
+                }
+            }
+        },
+        "models.ResponError": {
+            "type": "object",
+            "properties": {
+                "error": {
+                    "type": "string"
+                }
+            }
+        },
+        "models.ResponPesan": {
+            "type": "object",
+            "properties": {
+                "pesan": {
+                    "type": "string",
+                    "example": "Berhasil menambahkan username ke database"
+                }
+            }
+        },
+        "models.SuccessHandlerHapusUpdateTodo": {
+            "type": "object",
+            "properties": {
+                "pesan": {
+                    "type": "string"
+                }
+            }
+        },
+        "models.SuccessHandlerTodoSingle": {
+            "type": "object",
+            "properties": {
+                "judul": {
+                    "type": "string"
+                },
+                "pesan": {
+                    "type": "string"
+                },
+                "prioritas": {
+                    "type": "string"
+                }
+            }
+        },
+        "models.SuccessResponLogin": {
+            "type": "object",
+            "properties": {
+                "pesan": {
+                    "type": "string",
+                    "example": "Berhasil login!"
+                },
+                "token": {
                     "type": "string"
                 }
             }
