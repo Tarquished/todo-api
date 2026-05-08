@@ -8,9 +8,11 @@ import (
 	"strconv"
 
 	"context"
-	"log"
 	"strings"
 	"time"
+
+	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/log"
 
 	_ "todo-api/docs"
 
@@ -353,7 +355,11 @@ func handlerTodoSingle(w http.ResponseWriter, r *http.Request) {
 	})
 
 	if err != nil {
-		log.Printf("ERROR handlerTodoSingle - db.Create failed: %v, userID: %d", err, userID)
+		log.Error().
+			Err(err).
+			Uint("userID", userID).
+			Str("handler", "handlerTodoSingle").
+			Msg("gagal menyimpan todo")
 		sendError(w, "gagal menyimpan data", 500)
 		return
 	}
@@ -418,7 +424,11 @@ func handlerTodoBatch(w http.ResponseWriter, r *http.Request) {
 			UserID:    userID,
 		})
 		if err != nil {
-			log.Printf("ERROR handlerTodoBatch - CreateTodo failed: %v, userID: %d", err, userID)
+			log.Error().
+				Err(err).
+				Uint("userID", userID).
+				Str("handler", "handlerTodoBatch").
+				Msg("gagal menyimpan todo")
 			hasil = append(hasil, listTodoBatch{
 				Judul: v.Judul,
 				Error: "gagal menyimpan data",
@@ -481,7 +491,11 @@ func handlerTodos(w http.ResponseWriter, r *http.Request) {
 	todos, total, err := repo.GetTodos(userID, limit, offset)
 
 	if err != nil {
-		log.Printf("ERROR handlerTodos - GetTodos failed: %v, userID: %d", err, userID)
+		log.Error().
+			Err(err).
+			Uint("userID", userID).
+			Str("handler", "handlerTodos").
+			Msg("gagal menampilkan todos")
 		sendError(w, "gagal mengambil data", 500)
 		return
 	}
@@ -540,7 +554,11 @@ func handlerHapusTodo(w http.ResponseWriter, r *http.Request) {
 	userID := getUserID(r)
 	err = repo.DeleteTodo(id, userID)
 	if err != nil {
-		log.Printf("ERROR handlerHapusTodo - db.Delete failed: %v, userID: %d", err, userID)
+		log.Error().
+			Err(err).
+			Uint("userID", userID).
+			Str("handler", "handlerHapusTodo").
+			Msg("gagal menghapus todo")
 		sendError(w, "gagal menghapus data", 500)
 		return
 	}
@@ -606,7 +624,11 @@ func handlerUpdateTodo(w http.ResponseWriter, r *http.Request) {
 	err = repo.UpdateTodo(id, userID, inputs.Judul, inputs.Prioritas)
 
 	if err != nil {
-		log.Printf("ERROR handlerUpdateTodo - db.Update failed: %v, userID: %d", err, userID)
+		log.Error().
+			Err(err).
+			Uint("userID", userID).
+			Str("handler", "handlerUpdateTodo").
+			Msg("gagal update todo")
 		sendError(w, "gagal mengupdate data", 500)
 		return
 	}
@@ -621,7 +643,9 @@ func recoveryMiddleware(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		defer func() {
 			if err := recover(); err != nil {
-				log.Printf("ERROR recoveryMiddlewar:%v", err)
+				log.Error().
+					Interface("panic", err).
+					Msg("panic recovered")
 				sendError(w, "terjadi kesalahan", 500)
 			}
 		}()
@@ -662,9 +686,12 @@ func corsMiddleware(next http.HandlerFunc) http.HandlerFunc {
 
 func main() {
 	var err error
+	zerolog.TimeFieldFormat = zerolog.TimeFormatUnix
 	err = loadConfig()
 	if err != nil {
-		log.Printf("Peringatan: file .env tidak ditemukan, menggunakan variabel sistem: %v", err)
+		log.Warn().
+			Err(err).
+			Msg("file .env tidak ditemukan, menggunakan variabel sistem")
 	}
 	dsn := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%s sslmode=disable",
 		viper.GetString("DB_HOST"),
@@ -687,7 +714,9 @@ func main() {
 
 	db, err = gorm.Open(postgres.Open(dsn), &gorm.Config{})
 	if err != nil {
-		log.Fatalf("Gagal konek ke database: %v", err)
+		log.Fatal().
+			Err(err).
+			Msg("gagal konek ke database")
 		return
 	}
 	repo = NewPostgresTodoRepository(db)
@@ -708,7 +737,7 @@ func main() {
 		port = "8080"
 	}
 
-	fmt.Println("Server jalan di port", port)
+	log.Info().Str("port", port).Msg("server started")
 	if err := http.ListenAndServe("0.0.0.0:"+port, nil); err != nil {
 		fmt.Println("Server error:", err)
 	}
