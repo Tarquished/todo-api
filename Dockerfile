@@ -1,18 +1,33 @@
-# Step 1: Pake Go sebagai base
-FROM golang:1.25-alpine
+# ==========================================
+# STAGE 1: BUILDER
+# ==========================================
+# PENTING: Perhatikan ada "AS builder" di ujung baris ini
+FROM golang:1.25-alpine AS builder
 
-# Step 2: Bikin folder kerja di dalam container
 WORKDIR /app
 
-# Step 3: Copy dependency files dulu (biar cache efisien)
+# Copy dependency dan download
 COPY go.mod go.sum ./
 RUN go mod download
 
-# Step 4: Copy semua kode
+# Copy source code
 COPY . .
 
-# Step 5: Build jadi binary
-RUN go build -o server .
+# Build binary (CGO_ENABLED=0 penting agar binary bisa jalan mandiri di Alpine)
+RUN CGO_ENABLED=0 GOOS=linux go build -o server .
 
-# Step 6: Jalanin binary-nya
+# ==========================================
+# STAGE 2: FINAL (Minimalist)
+# ==========================================
+FROM alpine:latest
+
+WORKDIR /app
+
+# KITA CUMA COPY FILE BINARY DARI STAGE BUILDER, TINGGALKAN COMPILERNYA
+COPY --from=builder /app/server .
+
+# Expose port (sebagai dokumentasi)
+EXPOSE 8080
+
+# Jalankan server
 CMD ["./server"]
