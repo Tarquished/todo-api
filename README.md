@@ -1,6 +1,6 @@
 # ✅ Todo API
 
-A REST API for managing todo lists with JWT authentication, built with Go and PostgreSQL.
+A robust, production-ready REST API for managing todo lists with JWT authentication. Built with Go and PostgreSQL, emphasizing clean architecture, security, and developer experience.
 
 **Live API:** `https://todo-api-production-74d1.up.railway.app`
 
@@ -8,18 +8,36 @@ A REST API for managing todo lists with JWT authentication, built with Go and Po
 
 ---
 
-## Tech Stack
+## 🚀 Tech Stack
 
 - **Go** — backend language
 - **PostgreSQL** — database
 - **GORM** — ORM for database operations
+- **Architecture** — Layered Architecture (Handler, Middleware, Repository Pattern)
 - **JWT (HS256)** — authentication with bcrypt password hashing
+- **Validation** — `go-playground/validator/v10`
+- **Configuration** — `spf13/viper` (Environment Variables)
+- **Logging** — `rs/zerolog` (JSON Structured Logging)
+- **Migrations** — `golang-migrate`
 - **Swagger/OpenAPI** — auto-generated API documentation
-- **Railway** — cloud deployment
+- **Deployment** — Docker & Docker Compose, deployed on Railway
 
 ---
 
-## Endpoints
+## ✨ Features & Engineering Highlights
+
+- **Clean Architecture** — Separation of concerns using the Repository Pattern for maintainability and testability.
+- **Robust Authentication** — Secure JWT implementation with `bcrypt` password hashing.
+- **Data Isolation** — User-owned resources ensuring users can only access and modify their own todos.
+- **Batch Create** — Add multiple todos in one request with per-item validation.
+- **Pagination** — `page` and `limit` query parameters with defaults.
+- **Production-Ready Logging** — Structured JSON logging (`zerolog`) for easier monitoring and debugging.
+- **Graceful Error Handling** — Custom panic recovery middleware catches unexpected errors gracefully.
+- **Containerized** — Multi-stage Docker build for a minimal, secure, and optimized container footprint.
+
+---
+
+## 🛣️ Endpoints
 
 | Method | Endpoint | Auth | Description |
 |--------|----------|------|-------------|
@@ -35,19 +53,7 @@ A REST API for managing todo lists with JWT authentication, built with Go and Po
 
 ---
 
-## Features
-
-- **JWT Authentication** — register, login, protected endpoints
-- **User Ownership** — each user's todos are isolated (filtered by user_id)
-- **Batch Create** — add multiple todos in one request with per-item validation
-- **Pagination** — `page` and `limit` query parameters with defaults
-- **Input Validation** — prioritas must be `tinggi`, `sedang`, or `rendah`
-- **Panic Recovery** — middleware catches unexpected errors gracefully
-- **Swagger Docs** — interactive API documentation at `/swagger/index.html`
-
----
-
-## Request & Response Examples
+## 💻 Request & Response Examples
 
 ### Register
 ```http
@@ -99,8 +105,8 @@ Content-Type: application/json
 Response:
 ```json
 {
-    "judul": "Belajar Go",
     "pesan": "Todo berhasil ditambahkan",
+    "judul": "Belajar Go",
     "prioritas": "tinggi"
 }
 ```
@@ -148,15 +154,27 @@ Response:
 
 ---
 
-## Validation Rules
+## 🛡️ Validation Rules
 
 - `judul` — required
 - `prioritas` — required, one of: `tinggi`, `sedang`, `rendah`
 
 ---
 
-## Local Development
+## 🛠️ Local Development
 
+### Option 1: Using Docker (Recommended)
+The easiest way to run this project locally is using Docker. It will automatically spin up the API, PostgreSQL database, and run the database migrations.
+
+**Prerequisites:** Docker & Docker Compose
+
+```bash
+git clone https://github.com/Tarquished/todo-api.git
+cd todo-api
+docker-compose up --build
+```
+
+### Option 2: Native Execution
 **Prerequisites:** Go 1.22+, PostgreSQL
 
 ```bash
@@ -169,10 +187,18 @@ go run main.go
 
 Server runs at `http://localhost:8080`. Swagger UI at `http://localhost:8080/swagger/index.html`.
 
-**Environment Variables:**
+---
 
-| Variable | Description |
-|----------|-------------|
-| `DATABASE_URL` | PostgreSQL connection string |
-| `PORT` | Server port (default: 8080) |
-| `JWT_SECRET` | Secret key for JWT signing |
+## ⚙️ Environment Variables
+
+If running natively without Docker, create a `.env` file in the root directory:
+
+| Variable | Example Value | Description |
+|----------|-------------|-------------|
+| `DB_HOST` | `localhost` | PostgreSQL Host |
+| `DB_USER` | `postgres` | Database User |
+| `DB_PASSWORD` | `secret123` | Database Password |
+| `DB_NAME` | `todo_db` | Database Name |
+| `DB_PORT` | `5432` | Database Port |
+| `PORT` | `8080` | Server Port |
+| `JWT_SECRET` | `your_super_secret_key`| Secret key for JWT signing |
